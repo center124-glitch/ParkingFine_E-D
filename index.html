@@ -4,14 +4,14 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D — SBK v6</title>
+  <title>ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D — SBK v9</title>
   <!--
-    SBK_ParkingFine_ED_v6.html — ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D)
+    SBK_ParkingFine_ED_v9.html — ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D)
     ศูนย์การค้าซีคอนบางแค (SBK) · เวอร์ชัน v2
-    ไฟล์เดียวครบ: HTML + CSS + JavaScript  (ใช้คู่กับ Code_ParkingFine_ED_v6.gs)
+    ไฟล์เดียวครบ: HTML + CSS + JavaScript  (ใช้คู่กับ Code_ParkingFine_ED_v9.gs)
     เปิดไฟล์นี้ได้เลย (ดับเบิลคลิก / วางบนเว็บเซิร์ฟเวอร์ / ส่งให้ทีม) ไม่ต้องอัปขึ้น Apps Script
     เชื่อมต่อ Google Sheets ผ่าน Web App URL ที่ฝังไว้ในตัวแปร API_URL ด้านล่าง (JSONP + POST)
-    v6: ตัดช่องลงนามออกจากรายงาน + เพิ่มการตรวจสอบข้อมูลและระบบดักจับข้อผิดพลาด
+    v9: เขียนกลับเข้าตารางรายเดือนของไฟล์รายปีเดิม + ตัดการแนบไฟล์ออก + ตั้งค่า/ทดสอบการเชื่อมต่อได้ในแอป
   -->
   <meta name="theme-color" content="#EA580C">
   <meta name="application-name" content="ยอดปรับ E/D">
@@ -287,9 +287,6 @@
       padding-top: 6px; border-top: 1px dashed var(--border); }
     .total-box { border-radius: 12px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
     .err-box { border-radius: 12px; padding: 10px 14px; background: var(--bad-soft); color: var(--bad); font-size: 14px; white-space: pre-line; }
-    .file-drop { border: 2px dashed var(--border); border-radius: 14px; padding: 14px; text-align: center; cursor: pointer; }
-    .file-drop:hover { border-color: #818CF8; }
-    .file-drop img { max-height: 140px; margin: 8px auto 0; border-radius: 10px; }
     .dl { display: grid; grid-template-columns: 150px 1fr; gap: 8px 14px; font-size: 15px; }
     .dl dt { color: var(--muted); }
     .dl dd { margin: 0; word-break: break-word; }
@@ -462,6 +459,7 @@
       <div id="overlaySpin" style="margin-top:16px;"><span class="spinner dark" style="width:28px;height:28px;"></span></div>
       <div id="overlayActions" class="hidden-el" style="margin-top:16px;">
         <button class="btn btn-primary" id="btnRetry" type="button">ลองโหลดใหม่</button>
+        <button class="btn btn-ghost" id="btnOverlaySettings" type="button">ตั้งค่าการเชื่อมต่อ</button>
       </div>
     </div>
   </div>
@@ -483,6 +481,9 @@
         <button class="icon-btn" id="btnReload" type="button" title="รีเฟรช: อ่านไฟล์ในโฟลเดอร์ใหม่ทั้งหมด" aria-label="รีเฟรชข้อมูลจากชีต">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M3 21v-5h5"/></svg>
           <span class="hidden md:inline text-[14px] font-semibold">รีเฟรชจากชีต</span>
+        </button>
+        <button class="icon-btn" id="btnSettings" type="button" title="ตั้งค่าการเชื่อมต่อ (Web App URL)" aria-label="ตั้งค่าการเชื่อมต่อ">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
         </button>
         <button class="icon-btn" id="btnLock" type="button" title="ล็อกหน้าจอ (กลับไปหน้าโลโก้)" aria-label="ล็อกหน้าจอ">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11V7a3 3 0 0 1 6 0v4"/><rect x="5" y="11" width="14" height="10" rx="2"/></svg>
@@ -742,7 +743,7 @@
 
   <script>
   /* ============================================================================
-   *  Frontend Logic — SBK_ParkingFine_ED_v6.html
+   *  Frontend Logic — SBK_ParkingFine_ED_v9.html
    *  ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D) — SBK
    *
    *  โครงสร้าง
@@ -760,7 +761,7 @@
   'use strict';
 
   /* ============================== 0. ค่าคงที่ / State ============================== */
-  const APP_VERSION = 'v6';
+  const APP_VERSION = 'v9';
 
 /* --------------------------------------------------------------------------
  *  ★ จุดเดียวที่ต้องแก้เวลาเปลี่ยน Deployment ★
@@ -885,7 +886,22 @@ function isValidKey(k) {
 
   /* ============================== 2. ตัวเชื่อมต่อ Server ============================== */
   function hasGAS() { return typeof google !== 'undefined' && google.script && google.script.run; }
-function hasApi() { return !!API_URL && /^https:\/\//.test(API_URL); }
+
+/**
+ * URL ที่ใช้งานจริง — ถ้าเคยตั้งค่าในแอป (เมนู "ตั้งค่าการเชื่อมต่อ") จะใช้ค่านั้นก่อน
+ * มีไว้เพื่อให้เปลี่ยน URL ได้ทันทีเมื่อ Deploy ใหม่ โดยไม่ต้องแก้โค้ดแล้วแจกไฟล์ใหม่
+ */
+function apiUrl() {
+  try {
+    const saved = localStorage.getItem('sbkFineApiUrl');
+    if (saved && /^https:\/\/script\.google\.com\//.test(saved)) return saved;
+  } catch (e) { /* localStorage ถูกปิด */ }
+  return API_URL;
+}
+function setApiUrl(u) {
+  try { u ? localStorage.setItem('sbkFineApiUrl', u) : localStorage.removeItem('sbkFineApiUrl'); } catch (e) { /* ignore */ }
+}
+function hasApi() { return /^https:\/\//.test(apiUrl()); }
 
 /** แปลงชื่อฟังก์ชัน + อาร์กิวเมนต์ → พารามิเตอร์ที่ Code.gs (routeApi_) เข้าใจ */
 function buildParams(fn, args) {
@@ -894,7 +910,7 @@ function buildParams(fn, args) {
     case 'saveData': return { action: 'saveData', payload: args[0] };
     case 'updateRecord': return { action: 'updateRecord', payload: args[0] };
     case 'deleteRecord': return { action: 'deleteRecord', category: args[0], recordId: args[1] };
-    case 'uploadFile': return { action: 'uploadFile', base64Data: args[0], fileName: args[1], mimeType: args[2] || '' };
+    case 'diagnose': return { action: 'diagnose' };
     default: return { action: fn };
   }
 }
@@ -911,14 +927,22 @@ function jsonpCall(params, timeoutMs) {
       const v = params[k];
       return encodeURIComponent(k) + '=' + encodeURIComponent(v && typeof v === 'object' ? JSON.stringify(v) : String(v));
     }).join('&');
-    const url = API_URL + (API_URL.indexOf('?') < 0 ? '?' : '&') + q + '&callback=' + cb + '&_t=' + Date.now();
+    const base = apiUrl();
+    const url = base + (base.indexOf('?') < 0 ? '?' : '&') + q + '&callback=' + cb + '&_t=' + Date.now();
     if (url.length > 7500) { reject(new Error('ข้อมูลยาวเกินกว่าจะส่งผ่าน GET ได้')); return; }
     const s = document.createElement('script');
     let done = false;
     const cleanup = () => { done = true; clearTimeout(timer); try { delete window[cb]; } catch (e) { window[cb] = undefined; } if (s.parentNode) s.parentNode.removeChild(s); };
     const timer = setTimeout(() => { if (done) return; cleanup(); reject(new Error('หมดเวลาเชื่อมต่อเซิร์ฟเวอร์ (timeout)')); }, timeoutMs || 180000);
     window[cb] = res => { if (done) return; cleanup(); resolve(res); };
-    s.onerror = () => { if (done) return; cleanup(); reject(new Error('เรียก Web App ไม่สำเร็จ — ตรวจสอบ API_URL และการตั้งค่า Deploy (Who has access: Anyone)')); };
+    s.onerror = () => {
+      if (done) return;
+      cleanup();
+      reject(new Error('เรียก Web App ไม่สำเร็จ\n' +
+        'ตรวจ 3 ข้อนี้: (1) Deploy → Manage deployments → Who has access ต้องเป็น "Anyone"\n' +
+        '(2) หลังแก้โค้ดต้อง Deploy → Edit → Version: New version\n' +
+        '(3) URL ต้องลงท้าย /exec และตรงกับ deployment ล่าสุด — แก้ได้ที่ปุ่มรูปเฟือง "ตั้งค่าการเชื่อมต่อ"'));
+    };
     s.src = url;
     document.head.appendChild(s);
   });
@@ -935,7 +959,7 @@ async function postCall(params) {
   const timer = ctl ? setTimeout(() => ctl.abort(), POST_TIMEOUT_MS) : null;
   let res;
   try {
-    res = await fetch(API_URL, {
+    res = await fetch(apiUrl(), {
       method: 'POST', redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(params),
@@ -973,12 +997,11 @@ function callServer(fn) {
 
   const params = buildParams(fn, args);
   const run = async () => {
-    if (fn === 'getData') return jsonpCall(params);
+    if (fn === 'getData' || fn === 'diagnose') return jsonpCall(params);
     try {
       return await postCall(params);
     } catch (err) {
       // สำรอง: บางเครือข่าย/เบราว์เซอร์บล็อก POST ข้ามโดเมน → ส่งผ่าน GET แทน (ยกเว้นไฟล์แนบที่ใหญ่เกิน)
-      if (fn === 'uploadFile') throw new Error('อัปโหลดไฟล์ไม่สำเร็จ: ' + err.message);
       return jsonpCall(params);
     }
   };
@@ -992,7 +1015,6 @@ function callServer(fn) {
     if (fn === 'getData' && !(Array.isArray(res.E) && Array.isArray(res.D))) {
       throw new Error('ผลลัพธ์จากเซิร์ฟเวอร์ไม่ตรงกับคำสั่ง (โครงสร้างข้อมูลไม่ถูกต้อง)');
     }
-    if (fn === 'uploadFile' && !res.url) throw new Error('อัปโหลดไม่สำเร็จ: ไม่ได้รับลิงก์ไฟล์จากเซิร์ฟเวอร์');
     return res;
   });
 }
@@ -1075,7 +1097,6 @@ function callServer(fn) {
         db[args[0]] = db[args[0]].filter(r => r.recordId !== args[1]);
         return { ok: true };
       }
-      case 'uploadFile': return { ok: true, url: '#demo-file', name: args[1] };
       default: throw new Error('ไม่รู้จักคำสั่ง ' + fn);
     }
   }
@@ -1583,9 +1604,9 @@ function callServer(fn) {
       date: todayKey(), time: nowTime(), docNo: '', payerName: '', idCard: '',
       damageType: m.damageTypes[0], damageDetail: '', nights: 1, amount: cat === 'E' ? (m.overnightRates[m.damageTypes[0]] || 0) : m.defaultCardFine,
       plateNo: '', cardNo: '', cardType: m.cardTypes[0], fineAmount: m.defaultCardFine, extraFee: 0,
-      paymentStatus: 'ชำระแล้ว', paymentMethod: m.paymentMethods[0], remarks: '', attachmentUrl: ''
+      paymentStatus: 'ชำระแล้ว', paymentMethod: m.paymentMethods[0], remarks: ''
     };
-    state.form = { cat: cat, editId: isEdit ? rec.recordId : null, amountTouched: isEdit, file: null };
+    state.form = { cat: cat, editId: isEdit ? rec.recordId : null, amountTouched: isEdit };
 
     $('#formStripe').style.background = cat === 'E' ? 'linear-gradient(180deg,var(--e-1),var(--e-2))' : 'linear-gradient(180deg,var(--d-1),var(--d-2))';
     $('#formTitle').textContent = (isEdit ? 'แก้ไขรายการ ' : 'บันทึกรายการใหม่ ') + (cat === 'E' ? 'หมวด E — ปรับค่าเสียหาย' : 'หมวด D — ปรับบัตร จยย. สูญหาย');
@@ -1634,11 +1655,6 @@ function callServer(fn) {
       '<div><label class="label" for="f-paymentMethod">ช่องทางชำระเงิน<span class="req" id="f-methodReq">*</span></label><select class="field" id="f-paymentMethod">' +
         '<option value="">— เลือก —</option>' + opt(m.paymentMethods, r.paymentMethod) + '</select></div>' +
       '<div class="span-2"><label class="label" for="f-remarks">หมายเหตุ</label><textarea class="field" id="f-remarks" rows="2" placeholder="เช่น เลขที่อ้างอิงการโอน / ผู้รับเงิน">' + esc(r.remarks) + '</textarea></div>' +
-      '<div class="span-2"><label class="label">แนบหลักฐาน / ใบเสร็จ (รูปภาพหรือ PDF)</label>' +
-        '<label class="file-drop" for="f-file" id="f-drop">' +
-          '<div class="text-[14px]"><b>แตะเพื่อถ่ายรูป / เลือกไฟล์</b> <span class="muted">(ไม่เกิน 10 MB — รูปจะถูกย่อขนาดอัตโนมัติ)</span></div>' +
-          '<div id="f-filePreview" class="text-[13.5px] mt-1">' + (r.attachmentUrl ? '<a href="' + esc(r.attachmentUrl) + '" target="_blank" rel="noopener" class="underline">ดูไฟล์แนบเดิม</a> <span class="muted">(เลือกไฟล์ใหม่เพื่อแทนที่)</span>' : '') + '</div>' +
-        '</label><input type="file" id="f-file" accept="image/*,application/pdf" class="hidden-el"></div>' +
       '<div class="span-2 err-box hidden-el" id="f-error" role="alert"></div>';
 
     $('#formBody').innerHTML = '<form id="entryForm" class="form-grid" novalidate>' + common + specific + payment + '</form>';
@@ -1662,7 +1678,6 @@ function callServer(fn) {
       $('#f-fineAmount').addEventListener('input', syncFormState);
       $('#f-extraFee').addEventListener('input', syncFormState);
     }
-    $('#f-file').addEventListener('change', onFilePicked);
     $('#entryForm').addEventListener('submit', e => { e.preventDefault(); submitForm(); });
     $$('#entryForm .field').forEach(el => el.addEventListener('input', () => el.classList.remove('invalid')));
   }
@@ -1693,51 +1708,6 @@ function callServer(fn) {
     $('#f-methodReq').classList.toggle('hidden-el', !paid);
     if (!paid) method.value = '';
     else if (!method.value) method.value = m.paymentMethods[0];
-  }
-
-  function onFilePicked(e) {
-    const file = e.target.files && e.target.files[0];
-    const prev = $('#f-filePreview');
-    if (!file) { state.form.file = null; return; }
-    if (!/^image\/|application\/pdf/.test(file.type)) { toast('error', 'รองรับเฉพาะไฟล์รูปภาพหรือ PDF'); e.target.value = ''; return; }
-    if (file.size > 10 * 1024 * 1024 && !/^image\//.test(file.type)) { toast('error', 'ไฟล์ PDF ต้องมีขนาดไม่เกิน 10 MB'); e.target.value = ''; return; }
-    state.form.file = file;
-    const sizeTxt = (file.size / 1024 / 1024).toFixed(2) + ' MB';
-    if (/^image\//.test(file.type)) {
-      const url = URL.createObjectURL(file);
-      prev.innerHTML = '<div>' + esc(file.name) + ' <span class="muted">(' + sizeTxt + ')</span></div><img src="' + url + '" alt="ตัวอย่างไฟล์แนบ">';
-    } else {
-      prev.innerHTML = '<div>' + ICONS.clip.replace('<svg', '<svg style="width:16px;height:16px;display:inline"') + ' ' + esc(file.name) + ' <span class="muted">(' + sizeTxt + ')</span></div>';
-    }
-  }
-
-  /**
-   * ย่อรูปก่อนส่ง — ด้านยาวสุด 1600px, JPEG 0.8
-   * (ใช้ 1600 แทน 800 เพราะใบเสร็จ/สลิปโอนต้องอ่านตัวเลขได้ชัด แต่ยังเล็กพอสำหรับ payload ของ Apps Script)
-   */
-  function fileToDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error('อ่านไฟล์ไม่สำเร็จ'));
-      reader.onload = () => {
-        if (!/^image\//.test(file.type) || /gif|svg/.test(file.type)) { resolve({ data: reader.result, name: file.name, mime: file.type }); return; }
-        const img = new Image();
-        img.onerror = () => resolve({ data: reader.result, name: file.name, mime: file.type });
-        img.onload = () => {
-          const max = 1600;
-          let w = img.naturalWidth, h = img.naturalHeight;
-          if (Math.max(w, h) > max) { const s = max / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
-          const c = document.createElement('canvas');
-          c.width = w; c.height = h;
-          const ctx = c.getContext('2d');
-          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
-          ctx.drawImage(img, 0, 0, w, h);
-          resolve({ data: c.toDataURL('image/jpeg', 0.8), name: file.name.replace(/\.\w+$/, '') + '.jpg', mime: 'image/jpeg' });
-        };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
-    });
   }
 
   function collectForm() {
@@ -1815,18 +1785,8 @@ function callServer(fn) {
     showFormError('');
 
     const btn = $('#btnSave');
-    setBtnLoading(btn, true, f.file ? 'กำลังอัปโหลดไฟล์…' : 'กำลังบันทึก…');
+    setBtnLoading(btn, true, 'กำลังบันทึก…');
     try {
-      if (f.editId) {
-        const old = findRecord(f.cat, f.editId);
-        rec.attachmentUrl = old ? (old.attachmentUrl || '') : '';
-      }
-      if (f.file) {
-        const up = await fileToDataUrl(f.file);
-        const res = await callServer('uploadFile', up.data, f.cat + '_' + rec.docNo + '_' + up.name, up.mime);
-        rec.attachmentUrl = res.url;
-        setBtnLoading(btn, false); setBtnLoading(btn, true, 'กำลังบันทึก…');
-      }
       const payload = { category: f.cat, record: rec, allowDuplicateDoc: !!allowDuplicateDoc };
       let res;
       if (f.editId) { payload.recordId = f.editId; res = await callServer('updateRecord', payload); }
@@ -1841,7 +1801,8 @@ function callServer(fn) {
       if (!f.editId) state.dash.anchor = saved.date;
       setBtnLoading(btn, false);
       renderAll();
-      toast('success', (res.message || 'บันทึกข้อมูลสำเร็จ') + ' — ' + saved.docNo + ' (' + money(saved.amount) + ' บาท)');
+      toast('success', (res.message || 'บันทึกข้อมูลสำเร็จ') + ' — ' + saved.docNo + ' (' + money(saved.amount) + ' บาท)', 6000);
+    if (res.warning) toast('warn', 'หมายเหตุ: ' + res.warning + '\nรายการถูกเก็บไว้ในไฟล์ "' + (state.meta.dbName || 'ฐานข้อมูล') + '" แล้ว', 9000);
       state.form = null;
     } catch (err) {
       setBtnLoading(btn, false);
@@ -1880,8 +1841,7 @@ function callServer(fn) {
         ['ค่าปรับบัตรสูญหาย', money(r.fineAmount) + ' บาท'], ['ค่าบริการเพิ่มเติม', money(r.extraFee) + ' บาท'], ['ยอดรวม', '<b class="num">' + money(r.amount) + '</b> บาท']);
     }
     rows.push(['สถานะ', statusBadge(r)], ['ช่องทางชำระ', esc(methodText(r))], ['หมายเหตุ', esc(r.remarks || '-')]);
-    rows.push(['ไฟล์แนบ', r.attachmentUrl ? '<a class="underline" href="' + esc(r.attachmentUrl) + '" target="_blank" rel="noopener">เปิดไฟล์แนบ</a>' : '-']);
-    if (r.readOnly) {
+      if (r.readOnly) {
       rows.push(['แหล่งข้อมูล', 'ไฟล์เดิม: ' + esc(r.sourceFile || '-') + (r.sourceSheet ? ' → ชีต ' + esc(r.sourceSheet) : '')]);
     } else {
       rows.push(['แหล่งข้อมูล', 'บันทึกผ่านหน้าเว็บ'], ['บันทึกเมื่อ', esc(r.createdAt || '-') + (r.createdBy ? ' โดย ' + esc(r.createdBy) : '')]);
@@ -1945,14 +1905,113 @@ function callServer(fn) {
       '<td class="r num">' + int(appE.length + appD.length) + '</td><td class="r num">' + money(summarize(appE.concat(appD)).paid) + '</td><td><span class="badge st-paid">ใช้งาน</span></td></tr>';
     $('#detailBody').innerHTML = '<div class="tbl-wrap"><table class="data"><thead><tr><th>ไฟล์</th><th class="c">หมวด</th><th class="c">ปี</th><th class="r">รายการ</th><th class="r">ชำระแล้ว (บาท)</th><th>สถานะ</th></tr></thead><tbody>' +
       (rowsHtml || '<tr><td colspan="6" class="muted">ไม่พบไฟล์ในโฟลเดอร์</td></tr>') + appRow + '</tbody></table></div>' +
-      '<div class="mt-4 text-[13.5px] muted" style="line-height:1.7">• แยกหมวดจากชื่อไฟล์: ต้องมีคำ "หมวด E" หรือ "หมวด D"<br>• ต้องมีปี พ.ศ. ในชื่อไฟล์ เช่น "ปี. 2570"<br>• ไฟล์ .xlsx ให้เปิดแล้วเลือก File → Save as Google Sheets</div>';
+      '<div class="mt-4 text-[13.5px] muted" style="line-height:1.7">• <b>รายการที่บันทึกผ่านหน้าเว็บจะเก็บในไฟล์ "' + esc(state.meta.dbName || 'ฐานข้อมูล') + '" ชีต Data_Category_E / Data_Category_D</b> ไม่ได้เขียนทับไฟล์รายปีเดิม<br>' +
+    '• แยกหมวดจากชื่อไฟล์: ต้องมีคำ "หมวด E" หรือ "หมวด D"<br>• ต้องมีปี พ.ศ. ในชื่อไฟล์ เช่น "ปี. 2570"<br>• ไฟล์ .xlsx ให้เปิดแล้วเลือก File → Save as Google Sheets<br>• ถ้าบันทึกแล้วไม่เห็นข้อมูล กดปุ่ม "ตรวจสอบระบบ" ด้านล่าง</div>';
     $('#detailFoot').innerHTML = (state.meta.folderUrl ? '<a class="btn btn-ghost" href="' + esc(state.meta.folderUrl) + '" target="_blank" rel="noopener">เปิดโฟลเดอร์</a>' : '') +
+      '<button class="btn btn-ghost" type="button" id="btnDiagnose">ตรวจสอบระบบ</button>' +
       '<button class="btn btn-primary" type="button" id="btnSourcesRefresh">รีเฟรชจากชีต</button><button class="btn btn-ghost" type="button" data-close-modal="detailModal">ปิด</button>';
     $('#btnSourcesRefresh').addEventListener('click', () => { closeModal('detailModal'); loadData(true); });
+    $('#btnDiagnose').addEventListener('click', runDiagnose);
     openModal('detailModal');
   }
 
-  /* ============================== 8. รายงาน A4 + Export ============================== */
+  /**
+ * ตรวจสอบระบบ — ไล่เช็คตั้งแต่สิทธิ์โฟลเดอร์ ไฟล์ฐานข้อมูล ชีตปลายทาง จนถึงทดลองเขียนจริง
+ * ใช้เวลาไล่หาสาเหตุเมื่อ "บันทึกแล้วไม่เห็นข้อมูลในชีต"
+ */
+async function runDiagnose() {
+  const btn = $('#btnDiagnose');
+  if (btn) setBtnLoading(btn, true, 'กำลังตรวจสอบ…');
+  try {
+    const res = await callServer('diagnose');
+    const rows = (res.checks || []).map(c =>
+      '<tr><td>' + (c.pass ? '<span class="badge st-paid">ผ่าน</span>' : '<span class="badge st-cancel">ไม่ผ่าน</span>') + '</td>' +
+      '<td>' + esc(c.name) + '</td><td>' + esc(c.detail) +
+      (c.url ? ' <a class="underline" href="' + esc(c.url) + '" target="_blank" rel="noopener">เปิด</a>' : '') + '</td></tr>').join('');
+    $('#detailStripe').style.background = res.ok ? 'linear-gradient(180deg,#10B981,#059669)' : 'linear-gradient(180deg,#EF4444,#DC2626)';
+    $('#detailTitle').textContent = 'ผลตรวจสอบระบบ' + (res.ok ? ' — ปกติทุกจุด' : ' — พบจุดที่ต้องแก้ไข');
+    $('#detailSub').textContent = 'ตรวจเมื่อ ' + (res.generatedAt || '-') + ' · เวอร์ชัน Backend ' + (res.version || '-');
+    $('#detailBody').innerHTML = '<div class="tbl-wrap"><table class="data"><thead><tr><th>ผล</th><th>รายการตรวจ</th><th>รายละเอียด</th></tr></thead><tbody>' +
+      (rows || '<tr><td colspan="3" class="muted">ไม่มีข้อมูล</td></tr>') + '</tbody></table></div>' +
+      '<div class="mt-4 text-[13.5px] muted" style="line-height:1.7">' + esc(res.note || '') + '</div>';
+    $('#detailFoot').innerHTML = (state.meta.dbUrl ? '<a class="btn btn-primary" href="' + esc(state.meta.dbUrl) + '" target="_blank" rel="noopener">เปิดไฟล์ฐานข้อมูล</a>' : '') +
+      '<button class="btn btn-ghost" type="button" data-close-modal="detailModal">ปิด</button>';
+    openModal('detailModal');
+    toast(res.ok ? 'success' : 'error', res.ok ? 'ตรวจสอบระบบแล้ว: การบันทึกลงชีตใช้งานได้ปกติ' : 'พบจุดที่ต้องแก้ไข ดูรายละเอียดในตาราง');
+  } catch (err) {
+    toast('error', 'ตรวจสอบระบบไม่สำเร็จ: ' + err.message + ' (ถ้าเพิ่งอัปเดตโค้ด ให้ Deploy → New version ก่อน)');
+  } finally {
+    if (btn && document.body.contains(btn)) setBtnLoading(btn, false);
+  }
+}
+
+/**
+ * ตั้งค่าการเชื่อมต่อ — ดู/แก้ Web App URL แล้วทดสอบได้ทันที
+ * ใช้เวลาเจอข้อความ "เรียก Web App ไม่สำเร็จ" ซึ่งมักเกิดจาก URL ไม่ตรงกับ deployment ล่าสุด
+ */
+function openSettings() {
+  const cur = apiUrl();
+  const custom = cur !== API_URL;
+  $('#detailStripe').style.background = 'linear-gradient(180deg,#4F46E5,#7C3AED)';
+  $('#detailTitle').textContent = 'ตั้งค่าการเชื่อมต่อ';
+  $('#detailSub').textContent = 'URL ของ Google Apps Script Web App ที่แอปใช้รับ-ส่งข้อมูล';
+  $('#detailBody').innerHTML =
+    '<label class="label" for="cfgUrl">Web App URL (ลงท้ายด้วย /exec)</label>' +
+    '<input type="url" class="field" id="cfgUrl" value="' + esc(cur) + '" spellcheck="false" placeholder="https://script.google.com/macros/s/.../exec">' +
+    '<div class="hint">' + (custom ? 'ตอนนี้ใช้ URL ที่ตั้งค่าไว้ในเครื่องนี้ (ไม่ใช่ค่าในโค้ด)' : 'ตอนนี้ใช้ค่าที่ฝังมาในโค้ด') + '</div>' +
+    '<div class="mt-4 err-box hidden-el" id="cfgResult" style="background:var(--card-2);color:var(--text)"></div>' +
+    '<div class="mt-4 text-[13.5px] muted" style="line-height:1.8">' +
+    '<b>ถ้าเชื่อมต่อไม่ได้ ให้ไล่ตรวจตามนี้</b><br>' +
+    '1. Apps Script → Deploy → Manage deployments → Edit (ดินสอ) → <b>Version: New version</b> → Deploy<br>' +
+    '2. ในหน้า Deploy: Execute as = <b>Me</b> · Who has access = <b>Anyone</b><br>' +
+    '3. คัดลอก URL ที่ลงท้าย <b>/exec</b> (ไม่ใช่ /dev) มาวางในช่องด้านบน แล้วกด "ทดสอบการเชื่อมต่อ"<br>' +
+    '4. ถ้าเพิ่งเพิ่มสิทธิ์ให้บัญชีใหม่ ให้เปิด URL ในเบราว์เซอร์ 1 ครั้งเพื่อยืนยันสิทธิ์</div>';
+  $('#detailFoot').innerHTML =
+    '<button class="btn btn-ghost" type="button" id="cfgReset">คืนค่าในโค้ด</button>' +
+    '<button class="btn btn-ghost" type="button" id="cfgTest">ทดสอบการเชื่อมต่อ</button>' +
+    '<button class="btn btn-primary" type="button" id="cfgSave">บันทึกและโหลดใหม่</button>' +
+    '<button class="btn btn-ghost" type="button" data-close-modal="detailModal">ปิด</button>';
+
+  const show = (okFlag, msg) => {
+    const box = $('#cfgResult');
+    box.classList.remove('hidden-el');
+    box.style.color = okFlag ? 'var(--ok)' : 'var(--bad)';
+    box.textContent = msg;
+  };
+  $('#cfgTest').addEventListener('click', async () => {
+    const btn = $('#cfgTest');
+    const url = $('#cfgUrl').value.trim();
+    if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) { show(false, 'รูปแบบ URL ไม่ถูกต้อง ต้องขึ้นต้นด้วย https://script.google.com/ และลงท้ายด้วย /exec'); return; }
+    const prev = apiUrl();
+    setBtnLoading(btn, true, 'กำลังทดสอบ…');
+    setApiUrl(url);
+    try {
+      const res = await callServer('ping');
+      show(true, 'เชื่อมต่อสำเร็จ · Backend ' + (res.version || '-') + ' · บัญชีที่รันสคริปต์: ' + (res.user || '-') +
+        ' · เวลาเซิร์ฟเวอร์ ' + (res.serverTime || '-') + (res.writeBack ? ' · เขียนกลับไฟล์รายปี: เปิด' : ''));
+    } catch (err) {
+      show(false, err.message);
+      setApiUrl(prev === API_URL ? '' : prev); // คืนค่าเดิมถ้าทดสอบไม่ผ่าน
+    } finally {
+      setBtnLoading(btn, false);
+    }
+  });
+  $('#cfgSave').addEventListener('click', () => {
+    const url = $('#cfgUrl').value.trim();
+    if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) { show(false, 'รูปแบบ URL ไม่ถูกต้อง'); return; }
+    setApiUrl(url === API_URL ? '' : url);
+    closeModal('detailModal');
+    loadData(true);
+  });
+  $('#cfgReset').addEventListener('click', () => {
+    setApiUrl('');
+    $('#cfgUrl').value = API_URL;
+    show(true, 'กลับมาใช้ URL ที่ฝังในโค้ดแล้ว');
+  });
+  openModal('detailModal');
+}
+
+/* ============================== 8. รายงาน A4 + Export ============================== */
   const ROWS_PER_PAGE = 16; // 16 แถว + หัว/รวม + ช่องลงนาม ยังพอดีหน้า A4 แนวนอน
 
   function reportRecords() {
@@ -2481,7 +2540,9 @@ function callServer(fn) {
     $('#btnTheme').addEventListener('click', () => applyTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark'));
     $('#btnReload').addEventListener('click', () => loadData(true));
     $('#btnSources').addEventListener('click', () => { if (state.loaded) openSources(); });
-    $('#btnRetry').addEventListener('click', () => {
+  $('#btnSettings').addEventListener('click', openSettings);
+    $('#btnOverlaySettings').addEventListener('click', openSettings);
+  $('#btnRetry').addEventListener('click', () => {
       $('#overlayMsg').textContent = 'กำลังโหลดข้อมูลจาก Google Sheets…';
       $('#overlaySub').textContent = '';
       $('#overlaySpin').classList.remove('hidden-el');
