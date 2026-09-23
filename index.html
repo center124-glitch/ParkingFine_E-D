@@ -4,14 +4,14 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D — SBK v6</title>
+  <title>ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D — SBK v7</title>
   <!--
-    SBK_ParkingFine_ED_v6.html — ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D)
+    SBK_ParkingFine_ED_v7.html — ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D)
     ศูนย์การค้าซีคอนบางแค (SBK) · เวอร์ชัน v2
-    ไฟล์เดียวครบ: HTML + CSS + JavaScript  (ใช้คู่กับ Code_ParkingFine_ED_v6.gs)
+    ไฟล์เดียวครบ: HTML + CSS + JavaScript  (ใช้คู่กับ Code_ParkingFine_ED_v7.gs)
     เปิดไฟล์นี้ได้เลย (ดับเบิลคลิก / วางบนเว็บเซิร์ฟเวอร์ / ส่งให้ทีม) ไม่ต้องอัปขึ้น Apps Script
     เชื่อมต่อ Google Sheets ผ่าน Web App URL ที่ฝังไว้ในตัวแปร API_URL ด้านล่าง (JSONP + POST)
-    v6: ตัดช่องลงนามออกจากรายงาน + เพิ่มการตรวจสอบข้อมูลและระบบดักจับข้อผิดพลาด
+    v7: เพิ่มปุ่ม "ตรวจสอบระบบ" สำหรับไล่หาสาเหตุเมื่อบันทึกแล้วไม่เห็นข้อมูลในชีต
   -->
   <meta name="theme-color" content="#EA580C">
   <meta name="application-name" content="ยอดปรับ E/D">
@@ -742,7 +742,7 @@
 
   <script>
   /* ============================================================================
-   *  Frontend Logic — SBK_ParkingFine_ED_v6.html
+   *  Frontend Logic — SBK_ParkingFine_ED_v7.html
    *  ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D) — SBK
    *
    *  โครงสร้าง
@@ -760,7 +760,7 @@
   'use strict';
 
   /* ============================== 0. ค่าคงที่ / State ============================== */
-  const APP_VERSION = 'v6';
+  const APP_VERSION = 'v7';
 
 /* --------------------------------------------------------------------------
  *  ★ จุดเดียวที่ต้องแก้เวลาเปลี่ยน Deployment ★
@@ -895,6 +895,7 @@ function buildParams(fn, args) {
     case 'updateRecord': return { action: 'updateRecord', payload: args[0] };
     case 'deleteRecord': return { action: 'deleteRecord', category: args[0], recordId: args[1] };
     case 'uploadFile': return { action: 'uploadFile', base64Data: args[0], fileName: args[1], mimeType: args[2] || '' };
+    case 'diagnose': return { action: 'diagnose' };
     default: return { action: fn };
   }
 }
@@ -973,7 +974,7 @@ function callServer(fn) {
 
   const params = buildParams(fn, args);
   const run = async () => {
-    if (fn === 'getData') return jsonpCall(params);
+    if (fn === 'getData' || fn === 'diagnose') return jsonpCall(params);
     try {
       return await postCall(params);
     } catch (err) {
@@ -1841,7 +1842,8 @@ function callServer(fn) {
       if (!f.editId) state.dash.anchor = saved.date;
       setBtnLoading(btn, false);
       renderAll();
-      toast('success', (res.message || 'บันทึกข้อมูลสำเร็จ') + ' — ' + saved.docNo + ' (' + money(saved.amount) + ' บาท)');
+      toast('success', (res.message || 'บันทึกข้อมูลสำเร็จ') + ' — ' + saved.docNo + ' (' + money(saved.amount) + ' บาท)\n' +
+      'เก็บในไฟล์ "' + (state.meta.dbName || 'ฐานข้อมูล') + '" ชีต Data_Category_' + f.cat, 5000);
       state.form = null;
     } catch (err) {
       setBtnLoading(btn, false);
@@ -1945,14 +1947,47 @@ function callServer(fn) {
       '<td class="r num">' + int(appE.length + appD.length) + '</td><td class="r num">' + money(summarize(appE.concat(appD)).paid) + '</td><td><span class="badge st-paid">ใช้งาน</span></td></tr>';
     $('#detailBody').innerHTML = '<div class="tbl-wrap"><table class="data"><thead><tr><th>ไฟล์</th><th class="c">หมวด</th><th class="c">ปี</th><th class="r">รายการ</th><th class="r">ชำระแล้ว (บาท)</th><th>สถานะ</th></tr></thead><tbody>' +
       (rowsHtml || '<tr><td colspan="6" class="muted">ไม่พบไฟล์ในโฟลเดอร์</td></tr>') + appRow + '</tbody></table></div>' +
-      '<div class="mt-4 text-[13.5px] muted" style="line-height:1.7">• แยกหมวดจากชื่อไฟล์: ต้องมีคำ "หมวด E" หรือ "หมวด D"<br>• ต้องมีปี พ.ศ. ในชื่อไฟล์ เช่น "ปี. 2570"<br>• ไฟล์ .xlsx ให้เปิดแล้วเลือก File → Save as Google Sheets</div>';
+      '<div class="mt-4 text-[13.5px] muted" style="line-height:1.7">• <b>รายการที่บันทึกผ่านหน้าเว็บจะเก็บในไฟล์ "' + esc(state.meta.dbName || 'ฐานข้อมูล') + '" ชีต Data_Category_E / Data_Category_D</b> ไม่ได้เขียนทับไฟล์รายปีเดิม<br>' +
+    '• แยกหมวดจากชื่อไฟล์: ต้องมีคำ "หมวด E" หรือ "หมวด D"<br>• ต้องมีปี พ.ศ. ในชื่อไฟล์ เช่น "ปี. 2570"<br>• ไฟล์ .xlsx ให้เปิดแล้วเลือก File → Save as Google Sheets<br>• ถ้าบันทึกแล้วไม่เห็นข้อมูล กดปุ่ม "ตรวจสอบระบบ" ด้านล่าง</div>';
     $('#detailFoot').innerHTML = (state.meta.folderUrl ? '<a class="btn btn-ghost" href="' + esc(state.meta.folderUrl) + '" target="_blank" rel="noopener">เปิดโฟลเดอร์</a>' : '') +
+      '<button class="btn btn-ghost" type="button" id="btnDiagnose">ตรวจสอบระบบ</button>' +
       '<button class="btn btn-primary" type="button" id="btnSourcesRefresh">รีเฟรชจากชีต</button><button class="btn btn-ghost" type="button" data-close-modal="detailModal">ปิด</button>';
     $('#btnSourcesRefresh').addEventListener('click', () => { closeModal('detailModal'); loadData(true); });
+    $('#btnDiagnose').addEventListener('click', runDiagnose);
     openModal('detailModal');
   }
 
-  /* ============================== 8. รายงาน A4 + Export ============================== */
+  /**
+ * ตรวจสอบระบบ — ไล่เช็คตั้งแต่สิทธิ์โฟลเดอร์ ไฟล์ฐานข้อมูล ชีตปลายทาง จนถึงทดลองเขียนจริง
+ * ใช้เวลาไล่หาสาเหตุเมื่อ "บันทึกแล้วไม่เห็นข้อมูลในชีต"
+ */
+async function runDiagnose() {
+  const btn = $('#btnDiagnose');
+  if (btn) setBtnLoading(btn, true, 'กำลังตรวจสอบ…');
+  try {
+    const res = await callServer('diagnose');
+    const rows = (res.checks || []).map(c =>
+      '<tr><td>' + (c.pass ? '<span class="badge st-paid">ผ่าน</span>' : '<span class="badge st-cancel">ไม่ผ่าน</span>') + '</td>' +
+      '<td>' + esc(c.name) + '</td><td>' + esc(c.detail) +
+      (c.url ? ' <a class="underline" href="' + esc(c.url) + '" target="_blank" rel="noopener">เปิด</a>' : '') + '</td></tr>').join('');
+    $('#detailStripe').style.background = res.ok ? 'linear-gradient(180deg,#10B981,#059669)' : 'linear-gradient(180deg,#EF4444,#DC2626)';
+    $('#detailTitle').textContent = 'ผลตรวจสอบระบบ' + (res.ok ? ' — ปกติทุกจุด' : ' — พบจุดที่ต้องแก้ไข');
+    $('#detailSub').textContent = 'ตรวจเมื่อ ' + (res.generatedAt || '-') + ' · เวอร์ชัน Backend ' + (res.version || '-');
+    $('#detailBody').innerHTML = '<div class="tbl-wrap"><table class="data"><thead><tr><th>ผล</th><th>รายการตรวจ</th><th>รายละเอียด</th></tr></thead><tbody>' +
+      (rows || '<tr><td colspan="3" class="muted">ไม่มีข้อมูล</td></tr>') + '</tbody></table></div>' +
+      '<div class="mt-4 text-[13.5px] muted" style="line-height:1.7">' + esc(res.note || '') + '</div>';
+    $('#detailFoot').innerHTML = (state.meta.dbUrl ? '<a class="btn btn-primary" href="' + esc(state.meta.dbUrl) + '" target="_blank" rel="noopener">เปิดไฟล์ฐานข้อมูล</a>' : '') +
+      '<button class="btn btn-ghost" type="button" data-close-modal="detailModal">ปิด</button>';
+    openModal('detailModal');
+    toast(res.ok ? 'success' : 'error', res.ok ? 'ตรวจสอบระบบแล้ว: การบันทึกลงชีตใช้งานได้ปกติ' : 'พบจุดที่ต้องแก้ไข ดูรายละเอียดในตาราง');
+  } catch (err) {
+    toast('error', 'ตรวจสอบระบบไม่สำเร็จ: ' + err.message + ' (ถ้าเพิ่งอัปเดตโค้ด ให้ Deploy → New version ก่อน)');
+  } finally {
+    if (btn && document.body.contains(btn)) setBtnLoading(btn, false);
+  }
+}
+
+/* ============================== 8. รายงาน A4 + Export ============================== */
   const ROWS_PER_PAGE = 16; // 16 แถว + หัว/รวม + ช่องลงนาม ยังพอดีหน้า A4 แนวนอน
 
   function reportRecords() {
