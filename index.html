@@ -4,14 +4,14 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D — SBK v5</title>
+  <title>ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D — SBK v6</title>
   <!--
-    SBK_ParkingFine_ED_v5.html — ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D)
+    SBK_ParkingFine_ED_v6.html — ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D)
     ศูนย์การค้าซีคอนบางแค (SBK) · เวอร์ชัน v2
-    ไฟล์เดียวครบ: HTML + CSS + JavaScript  (ใช้คู่กับ Code_ParkingFine_ED_v5.gs)
+    ไฟล์เดียวครบ: HTML + CSS + JavaScript  (ใช้คู่กับ Code_ParkingFine_ED_v6.gs)
     เปิดไฟล์นี้ได้เลย (ดับเบิลคลิก / วางบนเว็บเซิร์ฟเวอร์ / ส่งให้ทีม) ไม่ต้องอัปขึ้น Apps Script
     เชื่อมต่อ Google Sheets ผ่าน Web App URL ที่ฝังไว้ในตัวแปร API_URL ด้านล่าง (JSONP + POST)
-    v5: เพิ่มคอลัมน์รหัสบัตรประชาชนในตารางแดชบอร์ด + เปลี่ยนไปใช้ Web App URL และโฟลเดอร์ข้อมูลชุดใหม่
+    v6: ตัดช่องลงนามออกจากรายงาน + เพิ่มการตรวจสอบข้อมูลและระบบดักจับข้อผิดพลาด
   -->
   <meta name="theme-color" content="#EA580C">
   <meta name="application-name" content="ยอดปรับ E/D">
@@ -342,8 +342,6 @@
     .a4 tr.tot td { font-weight: 700; background: #F8FAFC; border-top: 2px solid #CBD5E1; }
     .a4 .rp-foot { position: absolute; left: 38px; right: 38px; bottom: 14px; display: flex; justify-content: space-between;
       font-size: 11.5px; color: #94A3B8; }
-    .a4 .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: auto; padding-top: 18px; font-size: 13.5px; text-align: center; }
-    .a4 .sign .line { border-bottom: 1px dotted #64748B; height: 34px; margin: 0 30px 6px; }
     .a4 .tag-e { color: #9A3412; background: #FFF4E3; padding: 1px 7px; border-radius: 99px; font-weight: 600; font-size: 11.5px; }
     .a4 .tag-d { color: #1E3A8A; background: #EAF1FF; padding: 1px 7px; border-radius: 99px; font-weight: 600; font-size: 11.5px; }
 
@@ -744,7 +742,7 @@
 
   <script>
   /* ============================================================================
-   *  Frontend Logic — SBK_ParkingFine_ED_v5.html
+   *  Frontend Logic — SBK_ParkingFine_ED_v6.html
    *  ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D) — SBK
    *
    *  โครงสร้าง
@@ -762,7 +760,7 @@
   'use strict';
 
   /* ============================== 0. ค่าคงที่ / State ============================== */
-  const APP_VERSION = 'v5';
+  const APP_VERSION = 'v6';
 
 /* --------------------------------------------------------------------------
  *  ★ จุดเดียวที่ต้องแก้เวลาเปลี่ยน Deployment ★
@@ -846,7 +844,24 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbyEXhAEkP_5m4gYs6F1nRK1
     const d = new Date();
     return d.getDate() + ' ' + TH_MONTHS[d.getMonth()] + ' ' + (d.getFullYear() + 543) + ' เวลา ' + nowTime() + ' น.';
   }
-  function num(v) { const n = parseFloat(String(v === null || v === undefined ? '' : v).replace(/[^\d.\-]/g, '')); return isFinite(n) ? n : 0; }
+  /** แปลงค่าเป็นตัวเลขอย่างปลอดภัย — รองรับ null/undefined/NaN/Infinity/ข้อความมีคอมมา คืน 0 เสมอเมื่อแปลงไม่ได้ */
+function num(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  const s = String(v === null || v === undefined ? '' : v).replace(/,/g, '').trim();
+  if (!s) return 0;
+  const n = Number(s);
+  if (isFinite(n)) return n;
+  const m = parseFloat(s.replace(/[^\d.\-]/g, ''));
+  return isFinite(m) ? m : 0;
+}
+/** ตรวจว่าเป็นวันที่ใช้ได้จริง (กัน 2026-02-31 หรือปีเพี้ยน) */
+function isValidKey(k) {
+  const m = String(k || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const y = +m[1], mo = +m[2], d = +m[3];
+  if (y < 2000 || y > 2199 || mo < 1 || mo > 12 || d < 1) return false;
+  return d <= new Date(y, mo, 0).getDate();
+}
   function money(n, dec) {
     const d = dec === undefined ? 2 : dec;
     return num(n).toLocaleString('th-TH', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -913,15 +928,27 @@ function jsonpCall(params, timeoutMs) {
  * POST — ใช้กับ "การเขียนข้อมูล" และการอัปโหลดไฟล์ (ข้อมูลใหญ่เกิน URL)
  * ตั้ง Content-Type เป็น text/plain เพื่อให้เป็น simple request (ไม่เกิด preflight ที่ GAS ตอบไม่ได้)
  */
+const POST_TIMEOUT_MS = 120000;
 async function postCall(params) {
-  const res = await fetch(API_URL, {
-    method: 'POST', redirect: 'follow',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(params)
-  });
+  // ตัดการรอถ้าเซิร์ฟเวอร์ไม่ตอบ เพื่อไม่ให้ปุ่มบันทึกค้างตลอดไป
+  const ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), POST_TIMEOUT_MS) : null;
+  let res;
+  try {
+    res = await fetch(API_URL, {
+      method: 'POST', redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(params),
+      signal: ctl ? ctl.signal : undefined
+    });
+  } catch (err) {
+    throw new Error(err && err.name === 'AbortError' ? 'หมดเวลารอเซิร์ฟเวอร์ (กรุณาลองใหม่)' : 'เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ: ' + ((err && err.message) || err));
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
   if (!res.ok) throw new Error('เซิร์ฟเวอร์ตอบกลับสถานะ ' + res.status);
   const text = await res.text();
-  try { return JSON.parse(text); } catch (e) { throw new Error('รูปแบบผลลัพธ์จากเซิร์ฟเวอร์ไม่ถูกต้อง (อาจยังไม่ได้ Deploy เวอร์ชันใหม่)'); }
+  try { return JSON.parse(text); } catch (e) { throw new Error('รูปแบบผลลัพธ์จากเซิร์ฟเวอร์ไม่ถูกต้อง (อาจยังไม่ได้ Deploy เวอร์ชันใหม่ หรือยังไม่ได้อนุญาตสิทธิ์)'); }
 }
 
 /**
@@ -958,6 +985,14 @@ function callServer(fn) {
   return run().then(res => {
     if (!res) throw new Error('ไม่ได้รับข้อมูลจากเซิร์ฟเวอร์');
     if (res.ok === false) { const e = new Error(res.message || 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์'); e.code = res.code; throw e; }
+    // ตรวจว่าผลลัพธ์ตรงกับคำสั่งที่ส่งไปจริง (กันกรณีได้คำตอบของคำสั่งอื่นแล้วเข้าใจผิดว่าบันทึกสำเร็จ)
+    if ((fn === 'saveData' || fn === 'updateRecord') && !(res.record && res.record.recordId)) {
+      throw new Error('ผลลัพธ์จากเซิร์ฟเวอร์ไม่ตรงกับคำสั่ง — กรุณาตรวจสอบในชีตก่อนบันทึกซ้ำ');
+    }
+    if (fn === 'getData' && !(Array.isArray(res.E) && Array.isArray(res.D))) {
+      throw new Error('ผลลัพธ์จากเซิร์ฟเวอร์ไม่ตรงกับคำสั่ง (โครงสร้างข้อมูลไม่ถูกต้อง)');
+    }
+    if (fn === 'uploadFile' && !res.url) throw new Error('อัปโหลดไม่สำเร็จ: ไม่ได้รับลิงก์ไฟล์จากเซิร์ฟเวอร์');
     return res;
   });
 }
@@ -1050,7 +1085,7 @@ function callServer(fn) {
 
   /** ช่วงวันที่ของรายงาน 4 แบบ → { start, end (yyyy-MM-dd), label, sub } */
   function getPeriodRange(mode, anchorKey) {
-    const a = parseKey(anchorKey) || new Date();
+    const a = (isValidKey(anchorKey) && parseKey(anchorKey)) || new Date(); // กันวันที่อ้างอิงว่าง/ผิดรูปแบบ
     let s, e, label;
     if (mode === 'day') {
       s = e = a;
@@ -1072,7 +1107,7 @@ function callServer(fn) {
       sub: mode === 'day' ? MODE_LABEL.day : MODE_LABEL[mode] + ' · ' + thDate(start, 'short') + ' ถึง ' + thDate(end, 'short') };
   }
   function shiftAnchor(mode, anchorKey, dir) {
-    const a = parseKey(anchorKey) || new Date();
+    const a = (isValidKey(anchorKey) && parseKey(anchorKey)) || new Date(); // กันวันที่อ้างอิงว่าง/ผิดรูปแบบ
     if (mode === 'day') return toKey(addDays(a, dir));
     if (mode === 'week') return toKey(addDays(a, 7 * dir));
     if (mode === 'month') return toKey(new Date(a.getFullYear(), a.getMonth() + dir, Math.min(a.getDate(), 28)));
@@ -1102,7 +1137,7 @@ function callServer(fn) {
 
   /** bucket สำหรับกราฟแนวโน้มบนแดชบอร์ด (ย้อนหลังให้เห็นทิศทาง) */
   function buildTrendBuckets(mode, anchorKey) {
-    const a = parseKey(anchorKey) || new Date();
+    const a = (isValidKey(anchorKey) && parseKey(anchorKey)) || new Date(); // กันวันที่อ้างอิงว่าง/ผิดรูปแบบ
     const out = [];
     if (mode === 'day') {
       for (let i = 13; i >= 0; i--) { const d = addDays(a, -i), k = toKey(d); out.push({ label: d.getDate() + ' ' + TH_MONTHS_S[d.getMonth()], start: k, end: k }); }
@@ -1168,12 +1203,14 @@ function callServer(fn) {
 
   /* ============================== 4. Render: Dashboard ============================== */
   function renderAll() {
-    renderDashboard();
-    renderTable('dash');
-    renderCategoryTab('E');
-    renderCategoryTab('D');
-    renderSourcesBadge();
-    if (state.tab === 'report') renderReport();
+    // แยก try ต่อส่วน เพื่อให้ส่วนอื่นยังแสดงผลได้ แม้ส่วนใดส่วนหนึ่งมีปัญหา (เช่นไลบรารีกราฟโหลดไม่ขึ้น)
+    const safe = (name, fn) => { try { fn(); } catch (err) { if (window.console) console.error(name, err); toast('error', 'แสดงผล' + name + 'ไม่สำเร็จ: ' + err.message); } };
+    safe('แดชบอร์ด', renderDashboard);
+    safe('ตารางรายการ', () => renderTable('dash'));
+    safe('แท็บหมวด E', () => renderCategoryTab('E'));
+    safe('แท็บหมวด D', () => renderCategoryTab('D'));
+    safe('แหล่งข้อมูล', renderSourcesBadge);
+    if (state.tab === 'report') safe('รายงาน', renderReport);
     const m = state.meta;
     $('#footerInfo').textContent = 'อัปเดตข้อมูล: ' + thNowStamp() + ' · หมวด E ' + int(state.data.E.length) + ' รายการ · หมวด D ' + int(state.data.D.length) + ' รายการ · ' + APP_VERSION;
     const lf = $('#linkFolder'), ld = $('#linkDb');
@@ -1227,7 +1264,8 @@ function callServer(fn) {
     const dataE = buckets.map(b => sumPaidIn(state.data.E, b));
     const dataD = buckets.map(b => sumPaidIn(state.data.D, b));
     const hl = buckets.map(b => !(b.end < rg.start || b.start > rg.end)); // bucket ที่ตรงช่วงที่เลือก = สีเข้ม
-    $('#chartMainSub').textContent = { day: '14 วันล่าสุด', week: '8 สัปดาห์ล่าสุด', month: 'ทั้งปี พ.ศ. ' + (parseKey(state.dash.anchor).getFullYear() + 543), year: 'เปรียบเทียบรายปี' }[rg.mode] + ' (บาท)';
+    // ใช้ปีจากช่วงที่คำนวณแล้ว (rg) ไม่ใช่ anchor ดิบ เพราะ anchor อาจว่าง/ผิดรูปแบบ
+  $('#chartMainSub').textContent = { day: '14 วันล่าสุด', week: '8 สัปดาห์ล่าสุด', month: 'ทั้งปี พ.ศ. ' + (+rg.start.slice(0, 4) + 543), year: 'เปรียบเทียบรายปี' }[rg.mode] + ' (บาท)';
 
     if (state.charts.main) state.charts.main.destroy();
     state.charts.main = new Chart($('#chartMain'), {
@@ -1535,6 +1573,12 @@ function callServer(fn) {
     if (!state.loaded) { toast('warn', 'กรุณารอให้โหลดข้อมูลเสร็จก่อน'); return; }
     const isEdit = !!rec;
     const m = state.meta;
+    // กัน meta จากเซิร์ฟเวอร์ส่งรายการตัวเลือกมาว่าง → ใช้ค่าเริ่มต้นแทน ฟอร์มจะไม่พัง
+    if (!Array.isArray(m.damageTypes) || !m.damageTypes.length) m.damageTypes = DEFAULT_META.damageTypes.slice();
+    if (!Array.isArray(m.cardTypes) || !m.cardTypes.length) m.cardTypes = DEFAULT_META.cardTypes.slice();
+    if (!Array.isArray(m.paymentStatuses) || !m.paymentStatuses.length) m.paymentStatuses = DEFAULT_META.paymentStatuses.slice();
+    if (!Array.isArray(m.paymentMethods) || !m.paymentMethods.length) m.paymentMethods = DEFAULT_META.paymentMethods.slice();
+    if (!m.overnightRates || typeof m.overnightRates !== 'object') m.overnightRates = Object.assign({}, DEFAULT_META.overnightRates);
     const r = rec || {
       date: todayKey(), time: nowTime(), docNo: '', payerName: '', idCard: '',
       damageType: m.damageTypes[0], damageDetail: '', nights: 1, amount: cat === 'E' ? (m.overnightRates[m.damageTypes[0]] || 0) : m.defaultCardFine,
@@ -1720,7 +1764,11 @@ function callServer(fn) {
   function validateForm(rec) {
     const f = state.form, errs = [], bad = [];
     const need = (ok, field, msg) => { if (!ok) { errs.push(msg); bad.push(field); } };
-    need(/^\d{4}-\d{2}-\d{2}$/.test(rec.date), 'date', 'กรุณาระบุวันที่');
+    need(isValidKey(rec.date), 'date', 'กรุณาระบุวันที่ให้ถูกต้อง');
+  need(!rec.time || /^\d{1,2}:\d{2}$/.test(rec.time), 'time', 'รูปแบบเวลาไม่ถูกต้อง');
+  need(rec.docNo.length <= 60, 'docNo', 'เลขที่เอกสารยาวเกินไป');
+  need(rec.payerName.length <= 200, 'payerName', 'ชื่อ-นามสกุลยาวเกินไป');
+  need(num(rec.amount) < 10000000, f.cat === 'E' ? 'amount' : 'fineAmount', 'จำนวนเงินสูงผิดปกติ กรุณาตรวจสอบอีกครั้ง');
     need(!!rec.docNo, 'docNo', 'กรุณาระบุเลขที่เอกสาร / เลขที่ใบเสร็จ');
     need(!!rec.payerName, 'payerName', 'กรุณาระบุชื่อ-นามสกุลผู้ชำระ');
     if (f.cat === 'E') {
@@ -2008,10 +2056,6 @@ function callServer(fn) {
         (last ? '<tr class="tot"><td colspan="' + (showCat ? 6 : 5) + '">รวมยอดชำระแล้ว (' + int(sAll.paidCount) + ' จาก ' + int(list.length) + ' รายการ)</td><td class="r">' + money(sAll.paid) + '</td><td></td></tr>' : '') +
         '</tbody></table></div>');
     }
-    // ช่องลงนามท้ายหน้าสุดท้าย (เอกสารทางการ)
-    pages[pages.length - 1] += '<div class="sign"><div><div class="line"></div>ผู้จัดทำรายงาน<div style="color:#64748B">วันที่ ........../........../..........</div></div>' +
-      '<div><div class="line"></div>ผู้ตรวจสอบ / ผู้อนุมัติ<div style="color:#64748B">วันที่ ........../........../..........</div></div></div>';
-
     const total = pages.length;
     $('#reportPages').innerHTML = pages.map((p, i) => '<div class="a4">' + p + a4Foot(i + 1).replace('{{TOTAL}}', total) + '</div>').join('');
     drawReportChart(rg, E, D, types);
@@ -2091,6 +2135,12 @@ function callServer(fn) {
   async function exportReport(kind) {
     const btn = kind === 'pdf' ? $('#btnExportPdf') : $('#btnExportJpg');
     if (!state.loaded) return;
+    const pageCount = $$('#reportPages .a4').length;
+    if (pageCount > 40) {
+      // แปลงภาพใช้เวลาราว 1 วินาที/หน้า — เตือนก่อน ไม่ให้เข้าใจผิดว่าแอปค้าง
+      const go = await confirmBox('รายงานมีหลายหน้า', 'รายงานนี้มี ' + pageCount + ' หน้า การสร้างไฟล์อาจใช้เวลาหลายนาที\n\nแนะนำให้ย่อช่วงเวลา หรือเลือกเฉพาะหมวดเดียว', 'สร้างต่อไป');
+      if (!go) return;
+    }
     setBtnLoading(btn, true, 'กำลังสร้าง…');
     try {
       renderReport();
@@ -2356,7 +2406,9 @@ function callServer(fn) {
       showBusy(false);
       $('#lockOrg').textContent = state.meta.orgName + ' · ' + (state.meta.department || '');
       $('#lockStatus').textContent = 'ข้อมูลพร้อมใช้งาน · หมวด E ' + int(state.data.E.length) + ' · หมวด D ' + int(state.data.D.length) + ' รายการ';
-      const probs = (state.meta.sources || []).filter(s => s.status !== 'ok');
+      const noDate = allRecords().filter(r => !isValidKey(r.date)).length;
+    if (noDate) toast('warn', 'มี ' + int(noDate) + ' รายการที่อ่านวันที่จากชีตไม่ได้ จึงไม่ถูกนับในรายงานตามช่วงเวลา (ดูปุ่ม "แหล่งข้อมูล")', 8000);
+    const probs = (state.meta.sources || []).filter(s => s.status !== 'ok');
       if (state.demo && first) toast('info', 'โหมดทดลอง: ยังไม่ได้ตั้งค่า API_URL จึงแสดงข้อมูลจำลอง');
       else if (probs.length) toast('warn', 'มี ' + probs.length + ' ไฟล์ในโฟลเดอร์ที่อ่านไม่ได้ — กดปุ่ม "แหล่งข้อมูล" เพื่อดูรายละเอียด', 7000);
       else if (!first) toast('success', 'โหลดข้อมูลล่าสุดแล้ว (E ' + int(state.data.E.length) + ' · D ' + int(state.data.D.length) + ' รายการ)');
@@ -2446,7 +2498,24 @@ function callServer(fn) {
 
   function resetPage(id) { if (state.tables[id]) { state.tables[id].page = 1; renderTable(id); } }
 
+  /** ดักจับข้อผิดพลาดที่หลุดจาก try/catch — แจ้งผู้ใช้แทนที่จะเงียบหาย */
+  function bindGlobalErrors() {
+    let last = 0;
+    const report = msg => {
+      const now = Date.now();
+      if (now - last < 4000) return; // กันข้อความเด้งรัว
+      last = now;
+      try { toast('error', 'เกิดข้อผิดพลาดในระบบ: ' + msg); } catch (e) { /* ignore */ }
+    };
+    window.addEventListener('error', e => report((e && e.message) || 'ไม่ทราบสาเหตุ'));
+    window.addEventListener('unhandledrejection', e => {
+      const r = e && e.reason;
+      report((r && r.message) || String(r || 'ไม่ทราบสาเหตุ'));
+    });
+  }
+
   function init() {
+    bindGlobalErrors();
     $('#lockVer').textContent = APP_VERSION;
     const t = todayKey();
     state.dash.anchor = t;
