@@ -4,14 +4,14 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D — SBK v9</title>
+  <title>ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D — SBK v10</title>
   <!--
-    SBK_ParkingFine_ED_v9.html — ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D)
+    SBK_ParkingFine_ED_v10.html — ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D)
     ศูนย์การค้าซีคอนบางแค (SBK) · เวอร์ชัน v2
-    ไฟล์เดียวครบ: HTML + CSS + JavaScript  (ใช้คู่กับ Code_ParkingFine_ED_v9.gs)
+    ไฟล์เดียวครบ: HTML + CSS + JavaScript  (ใช้คู่กับ Code_ParkingFine_ED_v10.gs)
     เปิดไฟล์นี้ได้เลย (ดับเบิลคลิก / วางบนเว็บเซิร์ฟเวอร์ / ส่งให้ทีม) ไม่ต้องอัปขึ้น Apps Script
     เชื่อมต่อ Google Sheets ผ่าน Web App URL ที่ฝังไว้ในตัวแปร API_URL ด้านล่าง (JSONP + POST)
-    v9: เขียนกลับเข้าตารางรายเดือนของไฟล์รายปีเดิม + ตัดการแนบไฟล์ออก + ตั้งค่า/ทดสอบการเชื่อมต่อได้ในแอป
+    v10: รองรับการคืนเงิน/คืนบัตรทีหลัง และคำนวณยอดนำส่งสุทธิรายวัน/เดือน/ปี
   -->
   <meta name="theme-color" content="#EA580C">
   <meta name="application-name" content="ยอดปรับ E/D">
@@ -213,6 +213,7 @@
     .st-paid { background: var(--ok-soft); color: var(--ok); }
     .st-pending { background: var(--warn-soft); color: var(--warn); }
     .st-claim { background: var(--claim-soft); color: var(--claim); }
+    .st-refund { background: var(--d-soft); color: var(--d-ink); }
     .st-cancel { background: var(--bad-soft); color: var(--bad); }
     html.dark .st-paid { color: #34D399; } html.dark .st-pending { color: #FBBF24; }
     html.dark .st-claim { color: #C4B5FD; } html.dark .st-cancel { color: #F87171; }
@@ -548,19 +549,19 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-5">
         <div class="kpi kpi-e">
           <div class="kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
-          <div class="kpi-label">ยอดปรับหมวด E (ค่าเสียหาย)</div>
+          <div class="kpi-label">ยอดนำส่งหมวด E (รับ − คืน)</div>
           <div class="kpi-value num"><span id="kpiE">0</span><span class="kpi-unit">บาท</span></div>
           <div class="kpi-sub" id="kpiESub">—</div>
         </div>
         <div class="kpi kpi-d">
           <div class="kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20M6 15h4"/></svg></div>
-          <div class="kpi-label">ยอดปรับหมวด D (บัตร จยย. หาย)</div>
+          <div class="kpi-label">ยอดนำส่งหมวด D (รับ − คืน)</div>
           <div class="kpi-value num"><span id="kpiD">0</span><span class="kpi-unit">บาท</span></div>
           <div class="kpi-sub" id="kpiDSub">—</div>
         </div>
         <div class="kpi kpi-t">
           <div class="kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-          <div class="kpi-label">รวมยอดเงินทั้งหมด (ชำระแล้ว)</div>
+          <div class="kpi-label">ยอดเงินนำส่งสุทธิ</div>
           <div class="kpi-value num"><span id="kpiTotal">0</span><span class="kpi-unit">บาท</span></div>
           <div class="kpi-sub" id="kpiTotalSub">—</div>
         </div>
@@ -576,7 +577,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-5">
         <div class="card p-4 lg:col-span-2">
           <div class="flex items-center justify-between gap-2 flex-wrap">
-            <h3 class="font-semibold text-[16px]">เปรียบเทียบยอดปรับ หมวด E กับ หมวด D</h3>
+            <h3 class="font-semibold text-[16px]">เปรียบเทียบยอดนำส่งสุทธิ หมวด E กับ หมวด D</h3>
             <span class="muted text-[13px]" id="chartMainSub">—</span>
           </div>
           <div style="position:relative;height:300px;" class="mt-3"><canvas id="chartMain" aria-label="กราฟเปรียบเทียบยอดปรับ"></canvas></div>
@@ -743,7 +744,7 @@
 
   <script>
   /* ============================================================================
-   *  Frontend Logic — SBK_ParkingFine_ED_v9.html
+   *  Frontend Logic — SBK_ParkingFine_ED_v10.html
    *  ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D) — SBK
    *
    *  โครงสร้าง
@@ -761,7 +762,7 @@
   'use strict';
 
   /* ============================== 0. ค่าคงที่ / State ============================== */
-  const APP_VERSION = 'v9';
+  const APP_VERSION = 'v10';
 
 /* --------------------------------------------------------------------------
  *  ★ จุดเดียวที่ต้องแก้เวลาเปลี่ยน Deployment ★
@@ -780,7 +781,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbyEXhAEkP_5m4gYs6F1nRK1
     overnightRates: { 'จอดรถยนต์ค้างคืน': 1000, 'จอดรถจักรยานยนต์ค้างคืน': 300 },
     cardTypes: ['บัตรรายวัน', 'บัตรรายเดือน', 'บัตรพนักงาน'],
     defaultCardFine: 200,
-    paymentStatuses: ['ชำระแล้ว', 'ค้างชำระ', 'เคลมประกัน', 'ยกเลิก'],
+    paymentStatuses: ['ชำระแล้ว', 'คืนเงินแล้ว', 'ค้างชำระ', 'เคลมประกัน', 'ยกเลิก'],
     paymentMethods: ['เงินสด', 'โอนเงินผ่านธนาคาร'],
     docPrefix: 'FR',
     folderUrl: '',
@@ -1140,20 +1141,56 @@ function callServer(fn) {
    * สรุปยอด — "ยอดเงิน" นับเฉพาะสถานะ ชำระแล้ว (ตรงกับแถว "รวม" ในชีตเดิม)
    * รายการเคลมประกัน/ยกเลิก นับจำนวนแยก ไม่รวมเป็นเงิน
    */
+  const RECEIVED_STATUSES = ['ชำระแล้ว', 'คืนเงินแล้ว']; // สองสถานะนี้ = "เคยรับเงินเข้ามาแล้ว"
+  const isReceived = r => RECEIVED_STATUSES.indexOf(r.paymentStatus) >= 0;
+  const isRefunded = r => r.paymentStatus === 'คืนเงินแล้ว' && num(r.refundAmount) > 0;
+
+  /**
+   * สรุปยอดของ "รายการที่อยู่ในช่วง" (นับตามวันที่รับเงิน)
+   * หมายเหตุสำคัญ: เงินที่คืนจะถูกหักในวันที่คืนจริง ไม่ใช่วันที่รับ จึงต้องใช้ sumRefunds() แยกต่างหาก
+   */
   function summarize(list) {
-    const s = { count: list.length, paid: 0, paidCount: 0, pending: 0, pendingCount: 0, claimCount: 0, cancelCount: 0, cash: 0, transfer: 0 };
+    const s = { count: list.length, paid: 0, paidCount: 0, pending: 0, pendingCount: 0, claimCount: 0, cancelCount: 0,
+      cash: 0, transfer: 0, refundedCount: 0, refundedHere: 0 };
     list.forEach(r => {
       const a = num(r.amount);
-      if (r.paymentStatus === 'ชำระแล้ว') {
+      if (isReceived(r)) {
         s.paid += a; s.paidCount++;
         if (r.paymentMethod === 'เงินสด') s.cash += a;
         else if (r.paymentMethod === 'โอนเงินผ่านธนาคาร') s.transfer += a;
+        if (isRefunded(r)) { s.refundedCount++; s.refundedHere += num(r.refundAmount); }
       } else if (r.paymentStatus === 'ค้างชำระ') { s.pending += a; s.pendingCount++; }
       else if (r.paymentStatus === 'เคลมประกัน') s.claimCount++;
       else if (r.paymentStatus === 'ยกเลิก') s.cancelCount++;
     });
     s.paid = Math.round(s.paid * 100) / 100;
+    s.refundedHere = Math.round(s.refundedHere * 100) / 100;
     return s;
+  }
+
+  /**
+   * เงินที่ "จ่ายคืน" ภายในช่วงเวลา — ค้นจากรายการทั้งหมด เพราะรายการที่รับเงินเดือนก่อน
+   * อาจมาคืนในเดือนนี้ ยอดนำส่งของเดือนนี้จึงต้องถูกหัก
+   */
+  function sumRefunds(list, rg) {
+    let total = 0, count = 0, cash = 0, transfer = 0;
+    list.forEach(r => {
+      if (!isRefunded(r)) return;
+      const d = r.refundDate || r.date;
+      if (!d || d < rg.start || d > rg.end) return;
+      const a = num(r.refundAmount);
+      total += a; count++;
+      if (r.refundMethod === 'เงินสด') cash += a;
+      else if (r.refundMethod === 'โอนเงินผ่านธนาคาร') transfer += a;
+    });
+    return { total: Math.round(total * 100) / 100, count: count, cash: cash, transfer: transfer };
+  }
+
+  /** ยอดนำส่งสุทธิของช่วงเวลา = เงินที่รับในช่วง − เงินที่คืนในช่วง */
+  function remittance(list, rg) {
+    const s = summarize(list.filter(r => inRange(r, rg)));
+    const rf = sumRefunds(list, rg);
+    return { received: s.paid, refund: rf.total, net: Math.round((s.paid - rf.total) * 100) / 100, sum: s, rf: rf };
   }
 
   /** bucket สำหรับกราฟแนวโน้มบนแดชบอร์ด (ย้อนหลังให้เห็นทิศทาง) */
@@ -1194,8 +1231,17 @@ function callServer(fn) {
   }
 
   function sumPaidIn(list, b) {
-    return list.reduce((t, r) => t + (r.paymentStatus === 'ชำระแล้ว' && r.date >= b.start && r.date <= b.end ? num(r.amount) : 0), 0);
+    return list.reduce((t, r) => t + (isReceived(r) && r.date >= b.start && r.date <= b.end ? num(r.amount) : 0), 0);
   }
+  function sumRefundIn(list, b) {
+    return list.reduce((t, r) => {
+      if (!isRefunded(r)) return t;
+      const d = r.refundDate || r.date;
+      return t + (d >= b.start && d <= b.end ? num(r.refundAmount) : 0);
+    }, 0);
+  }
+  /** ยอดนำส่งสุทธิของ bucket (ใช้ในกราฟและตารางรายงาน) */
+  function sumNetIn(list, b) { return Math.round((sumPaidIn(list, b) - sumRefundIn(list, b)) * 100) / 100; }
   function countIn(list, b) { return list.reduce((t, r) => t + (r.date >= b.start && r.date <= b.end ? 1 : 0), 0); }
 
   /** กลุ่มประเภทรายการ (E แยกตามประเภทความเสียหาย, D รวมเป็นกลุ่มเดียว) */
@@ -1207,7 +1253,8 @@ function callServer(fn) {
       const key = r.category === 'E' ? 'E|' + (map['E|' + r.damageType] ? r.damageType : 'อื่นๆ') : 'D|บัตร จยย. สูญหาย';
       if (!map[key]) return;
       map[key].count++;
-      if (r.paymentStatus === 'ชำระแล้ว') map[key].paid += num(r.amount);
+      if (isReceived(r)) map[key].paid += num(r.amount);
+      if (isRefunded(r)) map[key].refund = (map[key].refund || 0) + num(r.refundAmount);
     });
     return Object.values(map);
   }
@@ -1249,20 +1296,33 @@ function callServer(fn) {
     const E = state.data.E.filter(r => inRange(r, rg));
     const D = state.data.D.filter(r => inRange(r, rg));
     const sE = summarize(E), sD = summarize(D);
-    $('#kpiE').textContent = money0(sE.paid);
-    $('#kpiD').textContent = money0(sD.paid);
-    $('#kpiTotal').textContent = money0(sE.paid + sD.paid);
+    // ยอดนำส่ง = เงินที่รับในช่วง − เงินที่จ่ายคืนในช่วง (รายการที่รับเดือนก่อนแล้วมาคืนเดือนนี้ก็ถูกหักที่นี่)
+    const rE = remittance(state.data.E, rg), rD = remittance(state.data.D, rg);
+    $('#kpiE').textContent = money0(rE.net);
+    $('#kpiD').textContent = money0(rD.net);
+    $('#kpiTotal').textContent = money0(rE.net + rD.net);
     $('#kpiCount').textContent = int(E.length + D.length);
 
+    const subLine = (s, r, extra) => {
+      const bits = ['รับ ' + money0(r.received)];
+      if (r.refund) bits.push('คืน ' + money0(r.refund) + ' (' + int(r.rf.count) + ' รายการ)');
+      bits.push(int(s.paidCount) + ' รายการรับเงิน');
+      extra.forEach(x => bits.push(x));
+      return bits.join(' · ');
+    };
     const extraE = [];
     if (sE.claimCount) extraE.push('เคลมประกัน ' + sE.claimCount);
     if (sE.pendingCount) extraE.push('ค้างชำระ ' + sE.pendingCount);
-    $('#kpiESub').textContent = int(sE.paidCount) + ' รายการชำระแล้ว' + (extraE.length ? ' · ' + extraE.join(' · ') : '');
+    $('#kpiESub').textContent = subLine(sE, rE, extraE);
     const extraD = [];
     if (sD.cancelCount) extraD.push('ยกเลิก ' + sD.cancelCount);
     if (sD.pendingCount) extraD.push('ค้างชำระ ' + sD.pendingCount);
-    $('#kpiDSub').textContent = int(sD.paidCount) + ' รายการชำระแล้ว' + (extraD.length ? ' · ' + extraD.join(' · ') : '');
-    $('#kpiTotalSub').textContent = 'เงินสด ' + money0(sE.cash + sD.cash) + ' · โอน ' + money0(sE.transfer + sD.transfer) + ' บาท';
+    $('#kpiDSub').textContent = subLine(sD, rD, extraD);
+    const totRefund = rE.refund + rD.refund;
+    $('#kpiTotalSub').textContent = 'รับ ' + money0(rE.received + rD.received) +
+      (totRefund ? ' · คืน ' + money0(totRefund) : '') +
+      ' · เงินสด ' + money0(sE.cash + sD.cash - rE.rf.cash - rD.rf.cash) +
+      ' · โอน ' + money0(sE.transfer + sD.transfer - rE.rf.transfer - rD.rf.transfer);
     const tk = todayKey();
     const todayCount = allRecords().filter(r => r.date === tk).length;
     $('#kpiCountSub').textContent = 'E ' + int(E.length) + ' · D ' + int(D.length) + ' · วันนี้ ' + int(todayCount) + ' รายการ';
@@ -1282,11 +1342,11 @@ function callServer(fn) {
     Chart.defaults.color = th.text;
 
     const buckets = buildTrendBuckets(rg.mode, state.dash.anchor);
-    const dataE = buckets.map(b => sumPaidIn(state.data.E, b));
-    const dataD = buckets.map(b => sumPaidIn(state.data.D, b));
+    const dataE = buckets.map(b => sumNetIn(state.data.E, b));
+    const dataD = buckets.map(b => sumNetIn(state.data.D, b));
     const hl = buckets.map(b => !(b.end < rg.start || b.start > rg.end)); // bucket ที่ตรงช่วงที่เลือก = สีเข้ม
     // ใช้ปีจากช่วงที่คำนวณแล้ว (rg) ไม่ใช่ anchor ดิบ เพราะ anchor อาจว่าง/ผิดรูปแบบ
-  $('#chartMainSub').textContent = { day: '14 วันล่าสุด', week: '8 สัปดาห์ล่าสุด', month: 'ทั้งปี พ.ศ. ' + (+rg.start.slice(0, 4) + 543), year: 'เปรียบเทียบรายปี' }[rg.mode] + ' (บาท)';
+  $('#chartMainSub').textContent = { day: '14 วันล่าสุด', week: '8 สัปดาห์ล่าสุด', month: 'ทั้งปี พ.ศ. ' + (+rg.start.slice(0, 4) + 543), year: 'เปรียบเทียบรายปี' }[rg.mode] + ' · ยอดนำส่งสุทธิ (บาท)';
 
     if (state.charts.main) state.charts.main.destroy();
     state.charts.main = new Chart($('#chartMain'), {
@@ -1294,8 +1354,8 @@ function callServer(fn) {
       data: {
         labels: buckets.map(b => b.label),
         datasets: [
-          { label: 'หมวด E ค่าเสียหาย', data: dataE, backgroundColor: hl.map(h => h ? COLORS.E : COLORS.ESoft), borderColor: COLORS.E, borderWidth: hl.map(h => h ? 0 : 1), borderRadius: 6, maxBarThickness: 34 },
-          { label: 'หมวด D บัตร จยย. หาย', data: dataD, backgroundColor: hl.map(h => h ? COLORS.D : COLORS.DSoft), borderColor: COLORS.D, borderWidth: hl.map(h => h ? 0 : 1), borderRadius: 6, maxBarThickness: 34 }
+          { label: 'หมวด E ค่าเสียหาย (สุทธิ)', data: dataE, backgroundColor: hl.map(h => h ? COLORS.E : COLORS.ESoft), borderColor: COLORS.E, borderWidth: hl.map(h => h ? 0 : 1), borderRadius: 6, maxBarThickness: 34 },
+          { label: 'หมวด D บัตร จยย. หาย (สุทธิ)', data: dataD, backgroundColor: hl.map(h => h ? COLORS.D : COLORS.DSoft), borderColor: COLORS.D, borderWidth: hl.map(h => h ? 0 : 1), borderRadius: 6, maxBarThickness: 34 }
         ]
       },
       options: {
@@ -1355,11 +1415,13 @@ function callServer(fn) {
     const sM = summarize(list.filter(r => inRange(r, mRg)));
     const sY = summarize(list.filter(r => inRange(r, yRg)));
     const sAll = summarize(list);
+    const rM = remittance(list, mRg), rY = remittance(list, yRg);
     const cards = [
-      ['เดือนนี้ (' + TH_MONTHS_S[new Date().getMonth()] + ')', money0(sM.paid) + ' บาท', int(sM.count) + ' รายการ'],
-      ['ปีนี้ (พ.ศ. ' + (new Date().getFullYear() + 543) + ')', money0(sY.paid) + ' บาท', int(sY.count) + ' รายการ'],
+      ['นำส่งเดือนนี้ (' + TH_MONTHS_S[new Date().getMonth()] + ')', money0(rM.net) + ' บาท', 'รับ ' + money0(rM.received) + (rM.refund ? ' · คืน ' + money0(rM.refund) : '') + ' · ' + int(sM.count) + ' รายการ'],
+      ['นำส่งปีนี้ (พ.ศ. ' + (new Date().getFullYear() + 543) + ')', money0(rY.net) + ' บาท', 'รับ ' + money0(rY.received) + (rY.refund ? ' · คืน ' + money0(rY.refund) : '') + ' · ' + int(sY.count) + ' รายการ'],
       ['ค้างชำระทั้งหมด', int(sAll.pendingCount) + ' รายการ', money0(sAll.pending) + ' บาท'],
-      [cat === 'E' ? 'เคลมประกันทั้งหมด' : 'ยกเลิกทั้งหมด', int(cat === 'E' ? sAll.claimCount : sAll.cancelCount) + ' รายการ', 'จากทั้งหมด ' + int(sAll.count) + ' รายการ']
+      ['คืนเงินแล้วทั้งหมด', int(sAll.refundedCount) + ' รายการ', money0(sAll.refundedHere) + ' บาท · ' +
+      (cat === 'E' ? 'เคลมประกัน ' + int(sAll.claimCount) : 'ยกเลิก ' + int(sAll.cancelCount)) + ' รายการ']
     ];
     $('#mini' + cat).innerHTML = cards.map(c =>
       '<div class="mini"><div class="muted text-[13px]">' + esc(c[0]) + '</div><div class="v num">' + esc(c[1]) + '</div><div class="sub">' + esc(c[2]) + '</div></div>').join('');
@@ -1372,7 +1434,8 @@ function callServer(fn) {
     edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
     del: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
     sheet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16M4 15h16M10 3v18"/></svg>',
-    clip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.4 11.1 12.2 20.3a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg>',
+    refund: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h11a5 5 0 0 1 0 10h-3"/><path d="M7 6l-4 4 4 4"/></svg>',
+  clip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21.4 11.1 12.2 20.3a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg>',
     empty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M21 21l-4.3-4.3"/><circle cx="11" cy="11" r="7"/><path d="M8 11h6"/></svg>'
   };
 
@@ -1383,11 +1446,23 @@ function callServer(fn) {
   };
 
   function statusBadge(r) {
-    const cls = { 'ชำระแล้ว': 'st-paid', 'ค้างชำระ': 'st-pending', 'เคลมประกัน': 'st-claim', 'ยกเลิก': 'st-cancel' }[r.paymentStatus] || 'st-pending';
+    const cls = { 'ชำระแล้ว': 'st-paid', 'คืนเงินแล้ว': 'st-refund', 'ค้างชำระ': 'st-pending', 'เคลมประกัน': 'st-claim', 'ยกเลิก': 'st-cancel' }[r.paymentStatus] || 'st-pending';
     return '<span class="badge ' + cls + '">' + esc(r.paymentStatus || '-') + '</span>';
   }
   function catBadge(cat) { return '<span class="badge badge-' + cat.toLowerCase() + '">หมวด ' + cat + '</span>'; }
-  function methodText(r) { return r.paymentStatus === 'ชำระแล้ว' ? (r.paymentMethod || 'ไม่ระบุ') : (r.paymentStatus === 'เคลมประกัน' ? 'เคลมประกัน' : '-'); }
+  function methodText(r) {
+  if (r.paymentStatus === 'คืนเงินแล้ว') return (r.paymentMethod || 'ไม่ระบุ') + ' → คืน ' + thDate(r.refundDate || r.date, 'short');
+  if (r.paymentStatus === 'ชำระแล้ว') return r.paymentMethod || 'ไม่ระบุ';
+  return r.paymentStatus === 'เคลมประกัน' ? 'เคลมประกัน' : '-';
+}
+/** ยอดในตาราง: ถ้ามีการคืนเงินจะแสดงยอดสุทธิพร้อมยอดที่คืนกำกับ */
+function amountCell(r) {
+  const a = money(r.amount);
+  if (!isRefunded(r)) return '<span class="num font-semibold">' + a + '</span>';
+  const net = num(r.amount) - num(r.refundAmount);
+  return '<span class="num font-semibold">' + money(net) + '</span>' +
+    '<span class="sub num"> (รับ ' + a + ' คืน ' + money(r.refundAmount) + ')</span>';
+}
   function recordDetail(r) {
     if (r.category === 'E') {
       const extra = r.damageDetail && r.damageDetail !== r.damageType ? r.damageDetail : '';
@@ -1440,7 +1515,7 @@ function callServer(fn) {
       cols.push({ key: 'extraFee', label: 'ค่าบริการเพิ่ม', sort: true, cls: 'r', html: r => '<span class="num">' + money(r.extraFee) + '</span>' });
     }
     cols.push(
-      { key: 'amount', label: id === 'D' ? 'รวม (บาท)' : 'จำนวนเงิน (บาท)', sort: true, cls: 'r', html: r => '<span class="num font-semibold">' + money(r.amount) + '</span>' },
+      { key: 'amount', label: id === 'D' ? 'รวม/สุทธิ (บาท)' : 'จำนวนเงิน (บาท)', sort: true, cls: 'r', html: amountCell },
       { key: 'paymentStatus', label: 'สถานะ / ช่องทาง', sort: true, html: r => one
         ? '<span class="line">' + statusBadge(r) + '<span class="sub">' + esc(methodText(r)) + '</span></span>'
         : statusBadge(r) + '<div class="sub">' + esc(methodText(r)) + '</div>' },
@@ -1455,7 +1530,10 @@ function callServer(fn) {
       // รายการจากไฟล์เดิม: แก้ที่ชีตต้นฉบับ (ลิงก์ไปแถวนั้นตรงๆ) เพื่อไม่ให้ข้อมูล 2 ที่ขัดกัน
       if (r.sourceUrl && r.sourceUrl !== '#') a.push('<a href="' + esc(r.sourceUrl) + '" target="_blank" rel="noopener" title="เปิดแถวนี้ในชีตต้นฉบับ" aria-label="เปิดชีตต้นฉบับ">' + ICONS.sheet + '</a>');
     } else {
-      a.push('<button type="button" data-act="edit" data-cat="' + r.category + '" data-id="' + esc(r.recordId) + '" title="แก้ไข" aria-label="แก้ไข">' + ICONS.edit + '</button>');
+      if (r.paymentStatus === 'ชำระแล้ว') {
+      a.push('<button type="button" data-act="refund" data-cat="' + r.category + '" data-id="' + esc(r.recordId) + '" title="บันทึกคืนเงิน / คืนบัตร" aria-label="บันทึกคืนเงิน">' + ICONS.refund + '</button>');
+    }
+    a.push('<button type="button" data-act="edit" data-cat="' + r.category + '" data-id="' + esc(r.recordId) + '" title="แก้ไข" aria-label="แก้ไข">' + ICONS.edit + '</button>');
       a.push('<button type="button" class="del" data-act="delete" data-cat="' + r.category + '" data-id="' + esc(r.recordId) + '" title="ลบ" aria-label="ลบ">' + ICONS.del + '</button>');
     }
     return '<div class="act">' + a.join('') + '</div>';
@@ -1604,7 +1682,8 @@ function callServer(fn) {
       date: todayKey(), time: nowTime(), docNo: '', payerName: '', idCard: '',
       damageType: m.damageTypes[0], damageDetail: '', nights: 1, amount: cat === 'E' ? (m.overnightRates[m.damageTypes[0]] || 0) : m.defaultCardFine,
       plateNo: '', cardNo: '', cardType: m.cardTypes[0], fineAmount: m.defaultCardFine, extraFee: 0,
-      paymentStatus: 'ชำระแล้ว', paymentMethod: m.paymentMethods[0], remarks: ''
+      paymentStatus: 'ชำระแล้ว', paymentMethod: m.paymentMethods[0], remarks: '',
+      refundDate: todayKey(), refundAmount: 0, refundMethod: m.paymentMethods[0], refundNote: ''
     };
     state.form = { cat: cat, editId: isEdit ? rec.recordId : null, amountTouched: isEdit };
 
@@ -1654,7 +1733,18 @@ function callServer(fn) {
       '<div><label class="label" for="f-paymentStatus">สถานะการชำระเงิน<span class="req">*</span></label><select class="field" id="f-paymentStatus">' + opt(m.paymentStatuses, r.paymentStatus) + '</select></div>' +
       '<div><label class="label" for="f-paymentMethod">ช่องทางชำระเงิน<span class="req" id="f-methodReq">*</span></label><select class="field" id="f-paymentMethod">' +
         '<option value="">— เลือก —</option>' + opt(m.paymentMethods, r.paymentMethod) + '</select></div>' +
-      '<div class="span-2"><label class="label" for="f-remarks">หมายเหตุ</label><textarea class="field" id="f-remarks" rows="2" placeholder="เช่น เลขที่อ้างอิงการโอน / ผู้รับเงิน">' + esc(r.remarks) + '</textarea></div>' +
+      '<div class="span-2 form-section" id="f-refundHead">การคืนเงิน (ลูกค้านำบัตรมาคืน / ยกเลิกภายหลัง)</div>' +
+    '<div id="f-refundDateWrap"><label class="label" for="f-refundDate">วันที่คืนเงิน<span class="req">*</span></label>' +
+      '<input type="date" class="field" id="f-refundDate" value="' + esc(r.refundDate || todayKey()) + '">' +
+      '<div class="hint">ยอดนำส่งจะถูกหักในวันที่คืนนี้ ไม่ใช่วันที่รับเงิน</div></div>' +
+    '<div id="f-refundAmountWrap"><label class="label" for="f-refundAmount">จำนวนเงินที่คืน (บาท)<span class="req">*</span></label>' +
+      '<input type="number" class="field num" id="f-refundAmount" min="0" step="0.01" value="' + esc(num(r.refundAmount)) + '">' +
+      '<div class="hint" id="f-refundHint"></div></div>' +
+    '<div id="f-refundMethodWrap"><label class="label" for="f-refundMethod">ช่องทางการคืนเงิน<span class="req">*</span></label>' +
+      '<select class="field" id="f-refundMethod">' + opt(m.paymentMethods, r.refundMethod || m.paymentMethods[0]) + '</select></div>' +
+    '<div id="f-refundNoteWrap"><label class="label" for="f-refundNote">เหตุผลการคืนเงิน</label>' +
+      '<input type="text" class="field" id="f-refundNote" value="' + esc(r.refundNote || '') + '" placeholder="เช่น ลูกค้านำบัตรมาคืนภายหลัง"></div>' +
+    '<div class="span-2"><label class="label" for="f-remarks">หมายเหตุ</label><textarea class="field" id="f-remarks" rows="2" placeholder="เช่น เลขที่อ้างอิงการโอน / ผู้รับเงิน">' + esc(r.remarks) + '</textarea></div>' +
       '<div class="span-2 err-box hidden-el" id="f-error" role="alert"></div>';
 
     $('#formBody').innerHTML = '<form id="entryForm" class="form-grid" novalidate>' + common + specific + payment + '</form>';
@@ -1670,6 +1760,7 @@ function callServer(fn) {
     if (sug) sug.addEventListener('click', () => { $('#f-docNo').value = nextDocNo(); $('#f-docNo').classList.remove('invalid'); });
     $('#f-docNo').addEventListener('input', e => { const p = e.target.selectionStart; e.target.value = e.target.value.toUpperCase(); e.target.setSelectionRange(p, p); });
     $('#f-paymentStatus').addEventListener('change', syncFormState);
+  ['f-refundAmount', 'f-refundDate'].forEach(id => { const el = $('#' + id); if (el) el.addEventListener('input', syncFormState); });
     if (cat === 'E') {
       $('#f-damageType').addEventListener('change', () => { f.amountTouched = false; syncFormState(); });
       $('#f-nights').addEventListener('input', syncFormState);
@@ -1703,11 +1794,22 @@ function callServer(fn) {
     }
     const status = $('#f-paymentStatus').value;
     const method = $('#f-paymentMethod');
-    const paid = status === 'ชำระแล้ว';
-    method.disabled = !paid;
-    $('#f-methodReq').classList.toggle('hidden-el', !paid);
-    if (!paid) method.value = '';
+    const received = status === 'ชำระแล้ว' || status === 'คืนเงินแล้ว'; // "คืนเงินแล้ว" = เคยรับเงินไว้ก่อน
+    method.disabled = !received;
+    $('#f-methodReq').classList.toggle('hidden-el', !received);
+    if (!received) method.value = '';
     else if (!method.value) method.value = m.paymentMethods[0];
+
+    const refunded = status === 'คืนเงินแล้ว';
+    ['f-refundHead', 'f-refundDateWrap', 'f-refundAmountWrap', 'f-refundMethodWrap', 'f-refundNoteWrap']
+      .forEach(id => { const el = $('#' + id); if (el) el.classList.toggle('hidden-el', !refunded); });
+    if (refunded) {
+      const amt = f.cat === 'E' ? num($('#f-amount').value) : (num($('#f-fineAmount').value) + num($('#f-extraFee').value));
+      const ra = $('#f-refundAmount');
+      if (!num(ra.value)) ra.value = amt;               // ค่าเริ่มต้น = คืนเต็มจำนวนที่รับไว้
+      if (!$('#f-refundDate').value) $('#f-refundDate').value = todayKey();
+      $('#f-refundHint').textContent = 'รับไว้ ' + money(amt) + ' บาท → คืน ' + money(ra.value) + ' บาท · คงเหลือนำส่ง ' + money(amt - num(ra.value)) + ' บาท';
+    }
   }
 
   function collectForm() {
@@ -1727,7 +1829,15 @@ function callServer(fn) {
       rec.amount = rec.fineAmount + rec.extraFee;
     }
     if (rec.paymentStatus === 'เคลมประกัน') rec.paymentMethod = 'เคลมประกัน';
-    else if (rec.paymentStatus !== 'ชำระแล้ว') rec.paymentMethod = '';
+    else if (rec.paymentStatus !== 'ชำระแล้ว' && rec.paymentStatus !== 'คืนเงินแล้ว') rec.paymentMethod = '';
+    if (rec.paymentStatus === 'คืนเงินแล้ว') {
+      rec.refundDate = g('refundDate');
+      rec.refundAmount = num(g('refundAmount'));
+      rec.refundMethod = g('refundMethod');
+      rec.refundNote = g('refundNote');
+    } else {
+      rec.refundDate = ''; rec.refundAmount = 0; rec.refundMethod = ''; rec.refundNote = '';
+    }
     return rec;
   }
 
@@ -1748,9 +1858,17 @@ function callServer(fn) {
       need(rec.fineAmount >= 0, 'fineAmount', 'ค่าปรับต้องไม่ติดลบ');
       need(rec.extraFee >= 0, 'extraFee', 'ค่าบริการต้องไม่ติดลบ');
     }
-    if (rec.paymentStatus === 'ชำระแล้ว') {
-      need(rec.amount > 0, f.cat === 'E' ? 'amount' : 'fineAmount', 'สถานะ "ชำระแล้ว" ต้องมีจำนวนเงินมากกว่า 0');
-      need(!!rec.paymentMethod, 'paymentMethod', 'กรุณาเลือกช่องทางชำระเงิน');
+    if (rec.paymentStatus === 'ชำระแล้ว' || rec.paymentStatus === 'คืนเงินแล้ว') {
+      need(rec.amount > 0, f.cat === 'E' ? 'amount' : 'fineAmount', 'สถานะ "' + rec.paymentStatus + '" ต้องมีจำนวนเงินที่รับมากกว่า 0');
+      need(!!rec.paymentMethod, 'paymentMethod', 'กรุณาเลือกช่องทางที่รับชำระเงิน');
+    }
+    if (rec.paymentStatus === 'คืนเงินแล้ว') {
+      need(isValidKey(rec.refundDate), 'refundDate', 'กรุณาระบุวันที่คืนเงินให้ถูกต้อง');
+      need(!isValidKey(rec.refundDate) || rec.refundDate >= rec.date, 'refundDate', 'วันที่คืนเงินต้องไม่ก่อนวันที่รับเงิน');
+      need(!isValidKey(rec.refundDate) || rec.refundDate <= todayKey(), 'refundDate', 'วันที่คืนเงินเป็นวันในอนาคต กรุณาตรวจสอบ');
+      need(rec.refundAmount > 0, 'refundAmount', 'กรุณาระบุจำนวนเงินที่คืนมากกว่า 0');
+      need(rec.refundAmount <= rec.amount, 'refundAmount', 'จำนวนเงินที่คืนต้องไม่เกินยอดที่รับไว้');
+      need(!!rec.refundMethod, 'refundMethod', 'กรุณาเลือกช่องทางการคืนเงิน');
     }
     if (rec.date && rec.date > todayKey()) { errs.push('วันที่บันทึกเป็นวันในอนาคต กรุณาตรวจสอบ'); bad.push('date'); }
     $$('#entryForm .field').forEach(el => el.classList.remove('invalid'));
@@ -1840,7 +1958,14 @@ function callServer(fn) {
       rows.push(['ทะเบียนรถ', esc(r.plateNo || '-')], ['เลขบัตรจอดรถ', esc(r.cardNo || '-')], ['ประเภทบัตร', esc(r.cardType || '-')],
         ['ค่าปรับบัตรสูญหาย', money(r.fineAmount) + ' บาท'], ['ค่าบริการเพิ่มเติม', money(r.extraFee) + ' บาท'], ['ยอดรวม', '<b class="num">' + money(r.amount) + '</b> บาท']);
     }
-    rows.push(['สถานะ', statusBadge(r)], ['ช่องทางชำระ', esc(methodText(r))], ['หมายเหตุ', esc(r.remarks || '-')]);
+    rows.push(['สถานะ', statusBadge(r)], ['ช่องทางรับชำระ', esc(r.paymentMethod || '-')]);
+  if (isRefunded(r)) {
+    rows.push(['วันที่คืนเงิน', esc(thDate(r.refundDate || r.date, 'long'))],
+      ['จำนวนเงินที่คืน', '<b class="num">' + money(r.refundAmount) + '</b> บาท (' + esc(r.refundMethod || '-') + ')'],
+      ['คงเหลือนำส่งสุทธิ', '<b class="num">' + money(num(r.amount) - num(r.refundAmount)) + '</b> บาท'],
+      ['เหตุผลการคืนเงิน', esc(r.refundNote || '-')]);
+  }
+  rows.push(['หมายเหตุ', esc(r.remarks || '-')]);
       if (r.readOnly) {
       rows.push(['แหล่งข้อมูล', 'ไฟล์เดิม: ' + esc(r.sourceFile || '-') + (r.sourceSheet ? ' → ชีต ' + esc(r.sourceSheet) : '')]);
     } else {
@@ -1919,6 +2044,22 @@ function callServer(fn) {
  * ตรวจสอบระบบ — ไล่เช็คตั้งแต่สิทธิ์โฟลเดอร์ ไฟล์ฐานข้อมูล ชีตปลายทาง จนถึงทดลองเขียนจริง
  * ใช้เวลาไล่หาสาเหตุเมื่อ "บันทึกแล้วไม่เห็นข้อมูลในชีต"
  */
+/** เปิดฟอร์มแก้ไขโดยตั้งสถานะเป็น "คืนเงินแล้ว" ให้พร้อมกรอก (ใช้ตอนลูกค้านำบัตรมาคืนทีหลัง) */
+function openRefund(cat, id) {
+  const r = findRecord(cat, id);
+  if (!r) { toast('error', 'ไม่พบรายการนี้'); return; }
+  if (r.readOnly) { toast('warn', 'รายการจากไฟล์เดิมต้องแก้ที่ชีตต้นฉบับ'); return; }
+  const draft = Object.assign({}, r, {
+    paymentStatus: 'คืนเงินแล้ว',
+    refundDate: r.refundDate || todayKey(),
+    refundAmount: num(r.refundAmount) || num(r.amount),
+    refundMethod: r.refundMethod || r.paymentMethod || state.meta.paymentMethods[0],
+    refundNote: r.refundNote || 'ลูกค้านำบัตรมาคืนภายหลัง'
+  });
+  openForm(cat, draft);
+  toast('info', 'กรอกวันที่และจำนวนเงินที่คืน แล้วกดบันทึก — ยอดนำส่งจะถูกหักในวันที่คืน');
+}
+
 async function runDiagnose() {
   const btn = $('#btnDiagnose');
   if (btn) setBtnLoading(btn, true, 'กำลังตรวจสอบ…');
@@ -2017,10 +2158,19 @@ function openSettings() {
   function reportRecords() {
     const rg = getPeriodRange(state.report.mode, state.report.anchor);
     const cats = state.report.cat === 'ALL' ? ['E', 'D'] : [state.report.cat];
-    let list = [];
-    cats.forEach(c => { list = list.concat(state.data[c].filter(r => inRange(r, rg))); });
+    let list = [], all = [];
+    cats.forEach(c => {
+      all = all.concat(state.data[c]);
+      list = list.concat(state.data[c].filter(r => inRange(r, rg)));
+    });
     list.sort((a, b) => ((a.date || '') + (a.time || '') + a.docNo).localeCompare((b.date || '') + (b.time || '') + b.docNo));
-    return { rg: rg, list: list, cats: cats };
+    // รายการที่รับเงินไว้ก่อนช่วงนี้ แต่มาคืนในช่วงนี้ → ต้องปรากฏในรายงานเพราะกระทบยอดนำส่ง
+    const inList = {};
+    list.forEach(r => { inList[r.recordId] = true; });
+    const refundOnly = all.filter(r => isRefunded(r) && !inList[r.recordId] &&
+      (r.refundDate || r.date) >= rg.start && (r.refundDate || r.date) <= rg.end);
+    refundOnly.sort((a, b) => String(a.refundDate).localeCompare(String(b.refundDate)));
+    return { rg: rg, list: list, cats: cats, all: all, refundOnly: refundOnly };
   }
 
   function a4Head(title, rg, pageNo) {
@@ -2043,33 +2193,40 @@ function openSettings() {
     const rr = reportRecords(), rg = rr.rg, list = rr.list;
     const E = list.filter(r => r.category === 'E'), D = list.filter(r => r.category === 'D');
     const sE = summarize(E), sD = summarize(D), sAll = summarize(list);
+    const allE = rr.all.filter(r => r.category === 'E'), allD = rr.all.filter(r => r.category === 'D');
+    const rfE = sumRefunds(allE, rg), rfD = sumRefunds(allD, rg), rfAll = { total: rfE.total + rfD.total, count: rfE.count + rfD.count, cash: rfE.cash + rfD.cash, transfer: rfE.transfer + rfD.transfer };
+    const netAll = Math.round((sAll.paid - rfAll.total) * 100) / 100;
     const catTitle = state.report.cat === 'E' ? 'หมวด E ค่าเสียหาย' : state.report.cat === 'D' ? 'หมวด D บัตร จยย. สูญหาย' : 'หมวด E และหมวด D';
     const title = 'รายงานสรุปยอดปรับ ' + catTitle;
-    $('#repInfo').textContent = MODE_LABEL[rg.mode] + ' · ' + rg.label + ' · ' + int(list.length) + ' รายการ · ยอดชำระแล้ว ' + money(sAll.paid) + ' บาท';
+    $('#repInfo').textContent = MODE_LABEL[rg.mode] + ' · ' + rg.label + ' · ' + int(list.length) + ' รายการ · รับเงิน ' + money(sAll.paid) +
+    ' บาท' + (rfAll.total ? ' · คืนเงิน ' + money(rfAll.total) + ' บาท' : '') + ' · นำส่งสุทธิ ' + money(netAll) + ' บาท';
 
     const pages = [];
     // ---------- หน้า 1: KPI + กราฟ + ตารางประเภท ----------
     const kpi = (bg, l, v, s) => '<div class="rp-kpi" style="background:' + bg + '"><div class="l">' + l + '</div><div class="v">' + v + '</div><div class="s">' + s + '</div></div>';
     const kpis = [];
-    if (state.report.cat !== 'D') kpis.push(kpi('linear-gradient(135deg,#F7A928,#E4502A)', 'หมวด E (ชำระแล้ว)', money0(sE.paid) + ' ฿', int(E.length) + ' รายการ · เคลมประกัน ' + int(sE.claimCount)));
-    if (state.report.cat !== 'E') kpis.push(kpi('linear-gradient(135deg,#4C8DF6,#6D55E8)', 'หมวด D (ชำระแล้ว)', money0(sD.paid) + ' ฿', int(D.length) + ' รายการ · ยกเลิก ' + int(sD.cancelCount)));
-    kpis.push(kpi('linear-gradient(135deg,#16B98A,#0B7F7A)', 'รวมยอดเงินทั้งหมด', money0(sAll.paid) + ' ฿', 'เงินสด ' + money0(sAll.cash) + ' · โอน ' + money0(sAll.transfer)));
-    kpis.push(kpi('linear-gradient(135deg,#A05BEA,#D8457A)', 'จำนวนรายการ', int(list.length), 'ค้างชำระ ' + int(sAll.pendingCount) + ' รายการ (' + money0(sAll.pending) + ' ฿)'));
+    if (state.report.cat !== 'D') kpis.push(kpi('linear-gradient(135deg,#F7A928,#E4502A)', 'หมวด E นำส่งสุทธิ', money0(sE.paid - rfE.total) + ' ฿', 'รับ ' + money0(sE.paid) + ' · คืน ' + money0(rfE.total) + ' · ' + int(E.length) + ' รายการ'));
+    if (state.report.cat !== 'E') kpis.push(kpi('linear-gradient(135deg,#4C8DF6,#6D55E8)', 'หมวด D นำส่งสุทธิ', money0(sD.paid - rfD.total) + ' ฿', 'รับ ' + money0(sD.paid) + ' · คืน ' + money0(rfD.total) + ' · ' + int(D.length) + ' รายการ'));
+    kpis.push(kpi('linear-gradient(135deg,#16B98A,#0B7F7A)', 'ยอดเงินนำส่งสุทธิ', money0(netAll) + ' ฿', 'เงินสด ' + money0(sAll.cash - rfAll.cash) + ' · โอน ' + money0(sAll.transfer - rfAll.transfer)));
+    kpis.push(kpi('linear-gradient(135deg,#A05BEA,#D8457A)', 'คืนเงิน / ค้างชำระ', money0(rfAll.total) + ' ฿', 'คืน ' + int(rfAll.count) + ' รายการ · ค้างชำระ ' + int(sAll.pendingCount) + ' รายการ (' + money0(sAll.pending) + ' ฿)'));
     while (kpis.length < 4) kpis.push('<div></div>');
 
     const types = typeBreakdown(list).filter(t => state.report.cat === 'ALL' || t.cat === state.report.cat);
     const typeRows = types.map(t => '<tr><td><span class="tag-' + t.cat.toLowerCase() + '">' + t.cat + '</span> ' + esc(t.label) + '</td><td class="r">' + int(t.count) + '</td><td class="r">' + money(t.paid) + '</td></tr>').join('');
-    const payRows = '<tr><td>เงินสด</td><td class="r" colspan="2">' + money(sAll.cash) + '</td></tr><tr><td>โอนเงินผ่านธนาคาร</td><td class="r" colspan="2">' + money(sAll.transfer) + '</td></tr>' +
-      (sAll.paid - sAll.cash - sAll.transfer > 0.001 ? '<tr><td>ไม่ระบุช่องทาง</td><td class="r" colspan="2">' + money(sAll.paid - sAll.cash - sAll.transfer) + '</td></tr>' : '');
+    const payRows = '<tr><td>รับ — เงินสด</td><td class="r" colspan="2">' + money(sAll.cash) + '</td></tr>' +
+      '<tr><td>รับ — โอนเงินผ่านธนาคาร</td><td class="r" colspan="2">' + money(sAll.transfer) + '</td></tr>' +
+      (sAll.paid - sAll.cash - sAll.transfer > 0.001 ? '<tr><td>รับ — ไม่ระบุช่องทาง</td><td class="r" colspan="2">' + money(sAll.paid - sAll.cash - sAll.transfer) + '</td></tr>' : '') +
+      (rfAll.total ? '<tr><td>หัก — คืนเงินในช่วงนี้ (' + int(rfAll.count) + ' รายการ)</td><td class="r" colspan="2">-' + money(rfAll.total) + '</td></tr>' : '') +
+      '<tr class="tot"><td>ยอดนำส่งสุทธิ</td><td class="r" colspan="2">' + money(netAll) + '</td></tr>';
     pages.push(
       a4Head(title, rg) +
       '<div class="rp-kpis">' + kpis.join('') + '</div>' +
       '<div class="rp-body">' +
-        '<div class="rp-box" style="display:flex;flex-direction:column"><h4>' + (rg.mode === 'day' ? 'ยอดชำระแล้วตามประเภทรายการ (บาท)' : rg.mode === 'year' ? 'ยอดชำระแล้วรายเดือน (บาท)' : 'ยอดชำระแล้วรายวัน (บาท)') + '</h4>' +
+        '<div class="rp-box" style="display:flex;flex-direction:column"><h4>' + (rg.mode === 'day' ? 'ยอดรับเงินตามประเภทรายการ (บาท)' : rg.mode === 'year' ? 'ยอดนำส่งสุทธิรายเดือน (บาท)' : 'ยอดนำส่งสุทธิรายวัน (บาท)') + '</h4>' +
           '<div style="position:relative;flex:1;min-height:0"><canvas id="reportChart" width="600" height="330"></canvas></div></div>' +
-        '<div class="rp-box"><h4>สรุปตามประเภทรายการ</h4><table><thead><tr><th>ประเภท</th><th class="r">รายการ</th><th class="r">ชำระแล้ว (บาท)</th></tr></thead><tbody>' + typeRows +
+        '<div class="rp-box"><h4>สรุปตามประเภทรายการ (ยอดที่รับ)</h4><table><thead><tr><th>ประเภท</th><th class="r">รายการ</th><th class="r">รับเงิน (บาท)</th></tr></thead><tbody>' + typeRows +
           '<tr class="tot"><td>รวม</td><td class="r">' + int(list.length) + '</td><td class="r">' + money(sAll.paid) + '</td></tr></tbody></table>' +
-          '<h4 style="margin-top:12px">แยกตามช่องทางชำระ</h4><table><tbody>' + payRows + '</tbody></table></div>' +
+          '<h4 style="margin-top:12px">กระทบยอดเงินนำส่ง</h4><table><tbody>' + payRows + '</tbody></table></div>' +
       '</div>'
     );
 
@@ -2078,41 +2235,55 @@ function openSettings() {
     if (inner.length) {
       const bRows = inner.map(b => {
         const eP = sumPaidIn(E, b), dP = sumPaidIn(D, b), eC = countIn(E, b), dC = countIn(D, b);
+        const rf = sumRefundIn(allE, b) + sumRefundIn(allD, b);
+        const net = eP + dP - rf;
         return { html: '<tr><td>' + esc(b.label) + '</td>' +
           (state.report.cat !== 'D' ? '<td class="r">' + (eC ? int(eC) : '-') + '</td><td class="r">' + (eP ? money(eP) : '-') + '</td>' : '') +
           (state.report.cat !== 'E' ? '<td class="r">' + (dC ? int(dC) : '-') + '</td><td class="r">' + (dP ? money(dP) : '-') + '</td>' : '') +
-          '<td class="r"><b>' + (eP + dP ? money(eP + dP) : '-') + '</b></td></tr>' };
+          '<td class="r">' + (rf ? '-' + money(rf) : '-') + '</td>' +
+          '<td class="r"><b>' + (net ? money(net) : '-') + '</b></td></tr>' };
       });
       const hdr = '<thead><tr><th>' + (rg.mode === 'year' ? 'เดือน' : 'วันที่') + '</th>' +
-        (state.report.cat !== 'D' ? '<th class="r">E รายการ</th><th class="r">E ชำระแล้ว (บาท)</th>' : '') +
-        (state.report.cat !== 'E' ? '<th class="r">D รายการ</th><th class="r">D ชำระแล้ว (บาท)</th>' : '') + '<th class="r">รวม (บาท)</th></tr></thead>';
+        (state.report.cat !== 'D' ? '<th class="r">E รายการ</th><th class="r">E รับเงิน (บาท)</th>' : '') +
+        (state.report.cat !== 'E' ? '<th class="r">D รายการ</th><th class="r">D รับเงิน (บาท)</th>' : '') +
+        '<th class="r">คืนเงิน (บาท)</th><th class="r">นำส่งสุทธิ (บาท)</th></tr></thead>';
       const tot = '<tr class="tot"><td>รวมทั้งสิ้น</td>' +
         (state.report.cat !== 'D' ? '<td class="r">' + int(E.length) + '</td><td class="r">' + money(sE.paid) + '</td>' : '') +
         (state.report.cat !== 'E' ? '<td class="r">' + int(D.length) + '</td><td class="r">' + money(sD.paid) + '</td>' : '') +
-        '<td class="r">' + money(sAll.paid) + '</td></tr>';
+        '<td class="r">' + (rfAll.total ? '-' + money(rfAll.total) : '-') + '</td><td class="r">' + money(netAll) + '</td></tr>';
       const per = ROWS_PER_PAGE + 1;
       for (let i = 0; i < bRows.length; i += per) {
         const chunk = bRows.slice(i, i + per), last = i + per >= bRows.length;
-        pages.push(a4Head('สรุปยอด' + (rg.mode === 'year' ? 'รายเดือน' : 'รายวัน') + ' — ' + catTitle, rg) +
+        pages.push(a4Head('สรุปยอดนำส่ง' + (rg.mode === 'year' ? 'รายเดือน' : 'รายวัน') + ' — ' + catTitle, rg) +
           '<div style="margin-top:14px"><table>' + hdr + '<tbody>' + chunk.map(x => x.html).join('') + (last ? tot : '') + '</tbody></table></div>');
       }
     }
 
     // ---------- ตารางรายละเอียดทุกรายการ ----------
     const showCat = state.report.cat === 'ALL';
-    const dHdr = '<thead><tr><th class="c">#</th><th>วันที่</th>' + (showCat ? '<th class="c">หมวด</th>' : '') + '<th>เลขที่เอกสาร</th><th>ชื่อ-นามสกุล</th><th>รายการ</th><th class="r">จำนวนเงิน (บาท)</th><th>สถานะ / ช่องทาง</th></tr></thead>';
-    const dRows = list.map((r, i) => {
+    const dHdr = '<thead><tr><th class="c">#</th><th>วันที่</th>' + (showCat ? '<th class="c">หมวด</th>' : '') + '<th>เลขที่เอกสาร</th><th>ชื่อ-นามสกุล</th><th>รายการ</th><th class="r">รับเงิน (บาท)</th><th class="r">คืนเงิน (บาท)</th><th>สถานะ / ช่องทาง</th></tr></thead>';
+    const detailRow = (r, i, refundOnlyMode) => {
       const item = r.category === 'E' ? (r.damageType + (num(r.nights) ? ' (' + int(r.nights) + ' คืน)' : '')) : ('บัตร จยย. หาย · ' + (r.cardType || '-'));
-      return '<tr><td class="c">' + (i + 1) + '</td><td style="white-space:nowrap">' + esc(thDate(r.date, 'short')) + '</td>' + (showCat ? '<td class="c"><span class="tag-' + r.category.toLowerCase() + '">' + r.category + '</span></td>' : '') +
-        '<td>' + esc(r.docNo) + '</td><td>' + esc(r.payerName) + '</td><td>' + esc(item) + '</td><td class="r">' + money(r.amount) + '</td><td>' + esc(r.paymentStatus + (r.paymentStatus === 'ชำระแล้ว' ? ' · ' + (r.paymentMethod || 'ไม่ระบุ') : '')) + '</td></tr>';
-    });
+      const rf = isRefunded(r) ? num(r.refundAmount) : 0;
+      const st = r.paymentStatus + (r.paymentMethod ? ' · ' + r.paymentMethod : '') +
+        (rf ? ' · คืน ' + thDate(r.refundDate || r.date, 'short') + (r.refundMethod ? ' (' + r.refundMethod + ')' : '') : '');
+      return '<tr><td class="c">' + i + '</td><td style="white-space:nowrap">' + esc(thDate(r.date, 'short')) + '</td>' +
+        (showCat ? '<td class="c"><span class="tag-' + r.category.toLowerCase() + '">' + r.category + '</span></td>' : '') +
+        '<td>' + esc(r.docNo) + '</td><td>' + esc(r.payerName) + '</td>' +
+        '<td>' + esc(item) + (refundOnlyMode ? ' <b>(รับเงินนอกช่วงนี้ — คืนในช่วงนี้)</b>' : '') + '</td>' +
+        '<td class="r">' + (refundOnlyMode ? '-' : money(r.amount)) + '</td>' +
+        '<td class="r">' + (rf ? '-' + money(rf) : '-') + '</td><td>' + esc(st) + '</td></tr>';
+    };
+    const dRows = list.map((r, i) => detailRow(r, i + 1, false))
+      .concat(rr.refundOnly.map((r, i) => detailRow(r, list.length + i + 1, true)));
     if (!dRows.length) {
       pages.push(a4Head('รายละเอียดรายการ — ' + catTitle, rg) + '<div style="margin:60px auto;text-align:center;color:#94A3B8;font-size:18px">ไม่มีรายการในช่วงเวลานี้</div>');
     }
     for (let i = 0; i < dRows.length; i += ROWS_PER_PAGE) {
       const last = i + ROWS_PER_PAGE >= dRows.length;
       pages.push(a4Head('รายละเอียดรายการ — ' + catTitle, rg) + '<div style="margin-top:14px"><table>' + dHdr + '<tbody>' + dRows.slice(i, i + ROWS_PER_PAGE).join('') +
-        (last ? '<tr class="tot"><td colspan="' + (showCat ? 6 : 5) + '">รวมยอดชำระแล้ว (' + int(sAll.paidCount) + ' จาก ' + int(list.length) + ' รายการ)</td><td class="r">' + money(sAll.paid) + '</td><td></td></tr>' : '') +
+        (last ? '<tr class="tot"><td colspan="' + (showCat ? 6 : 5) + '">รวมรับเงิน ' + int(sAll.paidCount) + ' รายการ · คืนเงิน ' + int(rfAll.count) + ' รายการ · นำส่งสุทธิ ' + money(netAll) + ' บาท</td>' +
+        '<td class="r">' + money(sAll.paid) + '</td><td class="r">' + (rfAll.total ? '-' + money(rfAll.total) : '-') + '</td><td></td></tr>' : '') +
         '</tbody></table></div>');
     }
     const total = pages.length;
@@ -2137,8 +2308,9 @@ function openSettings() {
       const inner = buildInnerBuckets(rg);
       labels = inner.map(b => b.short);
       ds = [];
-      if (showE) ds.push({ label: 'หมวด E', data: inner.map(b => sumPaidIn(E, b)), backgroundColor: COLORS.E, borderRadius: 4, stack: 's' });
-      if (showD) ds.push({ label: 'หมวด D', data: inner.map(b => sumPaidIn(D, b)), backgroundColor: COLORS.D, borderRadius: 4, stack: 's' });
+      // ใช้ยอดสุทธิ (หักเงินที่คืนในแต่ละช่วงแล้ว) ให้ตรงกับตารางยอดนำส่ง
+      if (showE) ds.push({ label: 'หมวด E (สุทธิ)', data: inner.map(b => sumNetIn(state.data.E, b)), backgroundColor: COLORS.E, borderRadius: 4, stack: 's' });
+      if (showD) ds.push({ label: 'หมวด D (สุทธิ)', data: inner.map(b => sumNetIn(state.data.D, b)), backgroundColor: COLORS.D, borderRadius: 4, stack: 's' });
     }
     state.reportChart = new Chart(canvas, {
       type: 'bar',
@@ -2229,12 +2401,14 @@ function openSettings() {
   function exportCSV() {
     const rr = reportRecords();
     if (!rr.list.length) { toast('warn', 'ไม่มีรายการในช่วงที่เลือก'); return; }
-    const head = ['หมวด', 'วันที่', 'เวลา', 'เลขที่เอกสาร', 'ชื่อ-นามสกุล', 'เลขบัตร', 'ประเภท/รายละเอียด', 'จำนวนคืน', 'ทะเบียนรถ', 'เลขบัตรจอด', 'ประเภทบัตร', 'ค่าปรับ', 'ค่าบริการเพิ่ม', 'จำนวนเงิน', 'สถานะ', 'ช่องทาง', 'หมายเหตุ', 'แหล่งข้อมูล'];
+    const head = ['หมวด', 'วันที่', 'เวลา', 'เลขที่เอกสาร', 'ชื่อ-นามสกุล', 'เลขบัตร', 'ประเภท/รายละเอียด', 'จำนวนคืน', 'ทะเบียนรถ', 'เลขบัตรจอด', 'ประเภทบัตร', 'ค่าปรับ', 'ค่าบริการเพิ่ม', 'รับเงิน', 'วันที่คืนเงิน', 'จำนวนเงินที่คืน', 'ช่องทางคืนเงิน', 'เหตุผลการคืนเงิน', 'สุทธิ', 'สถานะ', 'ช่องทางรับชำระ', 'หมายเหตุ', 'แหล่งข้อมูล'];
     const q = v => { const s = String(v === null || v === undefined ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const rows = rr.list.map(r => [r.category, r.date, r.time, r.docNo, r.payerName, r.idCard,
+    const rows = rr.list.concat(rr.refundOnly).map(r => [r.category, r.date, r.time, r.docNo, r.payerName, r.idCard,
       r.category === 'E' ? r.damageType + (r.damageDetail && r.damageDetail !== r.damageType ? ' - ' + r.damageDetail : '') : 'บัตร จยย. สูญหาย',
       r.category === 'E' ? num(r.nights) : '', r.plateNo || '', r.cardNo || '', r.cardType || '', r.category === 'D' ? num(r.fineAmount) : '', r.category === 'D' ? num(r.extraFee) : '',
-      num(r.amount), r.paymentStatus, r.paymentMethod, r.remarks, r.readOnly ? 'ไฟล์เดิม: ' + (r.sourceFile || '') : 'หน้าเว็บ'].map(q).join(','));
+      num(r.amount), r.refundDate || '', isRefunded(r) ? num(r.refundAmount) : '', r.refundMethod || '', r.refundNote || '',
+    num(r.amount) - (isRefunded(r) ? num(r.refundAmount) : 0),
+    r.paymentStatus, r.paymentMethod, r.remarks, r.readOnly ? 'ไฟล์เดิม: ' + (r.sourceFile || '') : 'หน้าเว็บ'].map(q).join(','));
     // BOM (\uFEFF) ทำให้ Excel อ่านภาษาไทย UTF-8 ถูกต้อง
     const blob = new Blob(['\uFEFF' + head.join(',') + '\n' + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -2523,6 +2697,7 @@ function openSettings() {
       const cat = b.dataset.cat, id = b.dataset.id;
       if (b.dataset.act === 'view') openDetail(cat, id);
       else if (b.dataset.act === 'edit') { closeModal('detailModal'); const r = findRecord(cat, id); if (r) openForm(cat, r); }
+    else if (b.dataset.act === 'refund') { closeModal('detailModal'); openRefund(cat, id); }
       else if (b.dataset.act === 'delete') deleteRec(cat, id);
     });
     // คลิกพื้นหลังเพื่อปิด (ยกเว้นฟอร์ม กันข้อมูลที่กรอกหายโดยไม่ตั้งใจ)
