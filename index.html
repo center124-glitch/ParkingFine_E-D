@@ -4,14 +4,14 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D — SBK v10</title>
+  <title>ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D — SBK v11</title>
   <!--
-    SBK_ParkingFine_ED_v10.html — ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D)
+    SBK_ParkingFine_ED_v11.html — ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D)
     ศูนย์การค้าซีคอนบางแค (SBK) · เวอร์ชัน v2
-    ไฟล์เดียวครบ: HTML + CSS + JavaScript  (ใช้คู่กับ Code_ParkingFine_ED_v10.gs)
+    ไฟล์เดียวครบ: HTML + CSS + JavaScript  (ใช้คู่กับ Code_ParkingFine_ED_v11.gs)
     เปิดไฟล์นี้ได้เลย (ดับเบิลคลิก / วางบนเว็บเซิร์ฟเวอร์ / ส่งให้ทีม) ไม่ต้องอัปขึ้น Apps Script
     เชื่อมต่อ Google Sheets ผ่าน Web App URL ที่ฝังไว้ในตัวแปร API_URL ด้านล่าง (JSONP + POST)
-    v10: รองรับการคืนเงิน/คืนบัตรทีหลัง และคำนวณยอดนำส่งสุทธิรายวัน/เดือน/ปี
+    v11: เปิดแอปเร็วขึ้น (แสดงข้อมูลล่าสุดทันที) + เวลาแบบ 24 ชม. + รายงานมาตรฐาน + กันบันทึกซ้ำ/แก้ทับกัน
   -->
   <meta name="theme-color" content="#EA580C">
   <meta name="application-name" content="ยอดปรับ E/D">
@@ -474,6 +474,7 @@
           <h1 class="font-head text-[17px] sm:text-[19px] font-semibold leading-snug truncate" id="appTitle">ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D</h1>
           <div class="muted text-[13px] truncate" id="appOrg">ศูนย์การค้าซีคอนบางแค (SBK) · แผนกลานจอดรถ</div>
         </div>
+        <span id="syncBadge" class="badge st-refund hidden-el" aria-live="polite"></span>
         <span id="demoBadge" class="badge st-pending hidden-el" title="ยังไม่ได้ตั้งค่า API_URL จึงใช้ข้อมูลจำลอง">โหมดทดลอง</span>
         <button class="icon-btn" id="btnSources" type="button" title="แหล่งข้อมูล (ไฟล์ในโฟลเดอร์)" aria-label="แหล่งข้อมูล">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
@@ -744,7 +745,7 @@
 
   <script>
   /* ============================================================================
-   *  Frontend Logic — SBK_ParkingFine_ED_v10.html
+   *  Frontend Logic — SBK_ParkingFine_ED_v11.html
    *  ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D) — SBK
    *
    *  โครงสร้าง
@@ -762,7 +763,7 @@
   'use strict';
 
   /* ============================== 0. ค่าคงที่ / State ============================== */
-  const APP_VERSION = 'v10';
+  const APP_VERSION = 'v11';
 
 /* --------------------------------------------------------------------------
  *  ★ จุดเดียวที่ต้องแก้เวลาเปลี่ยน Deployment ★
@@ -828,8 +829,28 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbyEXhAEkP_5m4gYs6F1nRK1
     const m = String(k || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
     return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
   }
-  function todayKey() { return toKey(new Date()); }
-  function nowTime() { const d = new Date(); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+  /**
+   * เวลาปัจจุบันตามเขตเวลาไทยเสมอ (Asia/Bangkok) — ไม่ขึ้นกับเขตเวลาที่ตั้งในเครื่อง
+   * กันกรณีเครื่องตั้งโซนเวลาผิด แล้ววันที่บันทึก/ยอดรายวันเลื่อนไป 1 วัน
+   */
+  function bkkParts() {
+    try {
+      const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+      }).formatToParts(new Date());
+      const o = {};
+      parts.forEach(p => { o[p.type] = p.value; });
+      const hh = o.hour === '24' ? '00' : o.hour;
+      return { y: +o.year, m: +o.month, d: +o.day, hh: hh, mm: o.minute, ss: o.second };
+    } catch (e) {
+      const d = new Date();
+      return { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate(), hh: pad2(d.getHours()), mm: pad2(d.getMinutes()), ss: pad2(d.getSeconds()) };
+    }
+  }
+  function bkkDate() { const p = bkkParts(); return new Date(p.y, p.m - 1, p.d); }
+  function todayKey() { const p = bkkParts(); return p.y + '-' + pad2(p.m) + '-' + pad2(p.d); }
+  function nowTime() { const p = bkkParts(); return p.hh + ':' + p.mm; }
   function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
   /** จันทร์ = วันแรกของสัปดาห์ (ตามรอบงานสำนักงาน) */
   function weekStart(d) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return addDays(x, -((x.getDay() + 6) % 7)); }
@@ -843,8 +864,8 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbyEXhAEkP_5m4gYs6F1nRK1
     return d.getDate() + ' ' + TH_MONTHS[d.getMonth()] + ' ' + be;
   }
   function thNowStamp() {
-    const d = new Date();
-    return d.getDate() + ' ' + TH_MONTHS[d.getMonth()] + ' ' + (d.getFullYear() + 543) + ' เวลา ' + nowTime() + ' น.';
+    const p = bkkParts();
+    return p.d + ' ' + TH_MONTHS[p.m - 1] + ' ' + (p.y + 543) + ' เวลา ' + p.hh + ':' + p.mm + ' น.';
   }
   /** แปลงค่าเป็นตัวเลขอย่างปลอดภัย — รองรับ null/undefined/NaN/Infinity/ข้อความมีคอมมา คืน 0 เสมอเมื่อแปลงไม่ได้ */
 function num(v) {
@@ -1107,7 +1128,7 @@ function callServer(fn) {
 
   /** ช่วงวันที่ของรายงาน 4 แบบ → { start, end (yyyy-MM-dd), label, sub } */
   function getPeriodRange(mode, anchorKey) {
-    const a = (isValidKey(anchorKey) && parseKey(anchorKey)) || new Date(); // กันวันที่อ้างอิงว่าง/ผิดรูปแบบ
+    const a = (isValidKey(anchorKey) && parseKey(anchorKey)) || bkkDate(); // กันวันที่อ้างอิงว่าง/ผิดรูปแบบ
     let s, e, label;
     if (mode === 'day') {
       s = e = a;
@@ -1129,7 +1150,7 @@ function callServer(fn) {
       sub: mode === 'day' ? MODE_LABEL.day : MODE_LABEL[mode] + ' · ' + thDate(start, 'short') + ' ถึง ' + thDate(end, 'short') };
   }
   function shiftAnchor(mode, anchorKey, dir) {
-    const a = (isValidKey(anchorKey) && parseKey(anchorKey)) || new Date(); // กันวันที่อ้างอิงว่าง/ผิดรูปแบบ
+    const a = (isValidKey(anchorKey) && parseKey(anchorKey)) || bkkDate(); // กันวันที่อ้างอิงว่าง/ผิดรูปแบบ
     if (mode === 'day') return toKey(addDays(a, dir));
     if (mode === 'week') return toKey(addDays(a, 7 * dir));
     if (mode === 'month') return toKey(new Date(a.getFullYear(), a.getMonth() + dir, Math.min(a.getDate(), 28)));
@@ -1141,7 +1162,9 @@ function callServer(fn) {
    * สรุปยอด — "ยอดเงิน" นับเฉพาะสถานะ ชำระแล้ว (ตรงกับแถว "รวม" ในชีตเดิม)
    * รายการเคลมประกัน/ยกเลิก นับจำนวนแยก ไม่รวมเป็นเงิน
    */
-  const RECEIVED_STATUSES = ['ชำระแล้ว', 'คืนเงินแล้ว']; // สองสถานะนี้ = "เคยรับเงินเข้ามาแล้ว"
+  /** ปัดเป็นสตางค์ — ผลรวมเงินทุกจุดผ่านฟังก์ชันนี้ กันทศนิยมลอยตัวสะสม (0.1 + 0.2 = 0.30000000000000004) */
+const cents = v => Math.round(num(v) * 100) / 100;
+const RECEIVED_STATUSES = ['ชำระแล้ว', 'คืนเงินแล้ว']; // สองสถานะนี้ = "เคยรับเงินเข้ามาแล้ว"
   const isReceived = r => RECEIVED_STATUSES.indexOf(r.paymentStatus) >= 0;
   const isRefunded = r => r.paymentStatus === 'คืนเงินแล้ว' && num(r.refundAmount) > 0;
 
@@ -1195,7 +1218,7 @@ function callServer(fn) {
 
   /** bucket สำหรับกราฟแนวโน้มบนแดชบอร์ด (ย้อนหลังให้เห็นทิศทาง) */
   function buildTrendBuckets(mode, anchorKey) {
-    const a = (isValidKey(anchorKey) && parseKey(anchorKey)) || new Date(); // กันวันที่อ้างอิงว่าง/ผิดรูปแบบ
+    const a = (isValidKey(anchorKey) && parseKey(anchorKey)) || bkkDate(); // กันวันที่อ้างอิงว่าง/ผิดรูปแบบ
     const out = [];
     if (mode === 'day') {
       for (let i = 13; i >= 0; i--) { const d = addDays(a, -i), k = toKey(d); out.push({ label: d.getDate() + ' ' + TH_MONTHS_S[d.getMonth()], start: k, end: k }); }
@@ -1231,14 +1254,14 @@ function callServer(fn) {
   }
 
   function sumPaidIn(list, b) {
-    return list.reduce((t, r) => t + (isReceived(r) && r.date >= b.start && r.date <= b.end ? num(r.amount) : 0), 0);
+    return cents(list.reduce((t, r) => t + (isReceived(r) && r.date >= b.start && r.date <= b.end ? Math.round(num(r.amount) * 100) : 0), 0) / 100);
   }
   function sumRefundIn(list, b) {
-    return list.reduce((t, r) => {
+    return cents(list.reduce((t, r) => {
       if (!isRefunded(r)) return t;
       const d = r.refundDate || r.date;
-      return t + (d >= b.start && d <= b.end ? num(r.refundAmount) : 0);
-    }, 0);
+      return t + (d >= b.start && d <= b.end ? Math.round(num(r.refundAmount) * 100) : 0);
+    }, 0) / 100);
   }
   /** ยอดนำส่งสุทธิของ bucket (ใช้ในกราฟและตารางรายงาน) */
   function sumNetIn(list, b) { return Math.round((sumPaidIn(list, b) - sumRefundIn(list, b)) * 100) / 100; }
@@ -1261,7 +1284,7 @@ function callServer(fn) {
 
   /** เลขที่เอกสารถัดไป — FR + ปี ค.ศ. 2 หลัก + ลำดับ 5 หลัก (หมวด E/D ใช้ลำดับเดียวกันตามไฟล์จริง) */
   function nextDocNo() {
-    const yy = String(new Date().getFullYear()).slice(-2);
+    const yy = String(bkkParts().y).slice(-2);
     const prefix = (state.meta.docPrefix || 'FR') + yy;
     const re = new RegExp('^' + prefix + '(\\d{5})$', 'i');
     let max = 0;
@@ -1417,8 +1440,8 @@ function callServer(fn) {
     const sAll = summarize(list);
     const rM = remittance(list, mRg), rY = remittance(list, yRg);
     const cards = [
-      ['นำส่งเดือนนี้ (' + TH_MONTHS_S[new Date().getMonth()] + ')', money0(rM.net) + ' บาท', 'รับ ' + money0(rM.received) + (rM.refund ? ' · คืน ' + money0(rM.refund) : '') + ' · ' + int(sM.count) + ' รายการ'],
-      ['นำส่งปีนี้ (พ.ศ. ' + (new Date().getFullYear() + 543) + ')', money0(rY.net) + ' บาท', 'รับ ' + money0(rY.received) + (rY.refund ? ' · คืน ' + money0(rY.refund) : '') + ' · ' + int(sY.count) + ' รายการ'],
+      ['นำส่งเดือนนี้ (' + TH_MONTHS_S[bkkParts().m - 1] + ')', money0(rM.net) + ' บาท', 'รับ ' + money0(rM.received) + (rM.refund ? ' · คืน ' + money0(rM.refund) : '') + ' · ' + int(sM.count) + ' รายการ'],
+      ['นำส่งปีนี้ (พ.ศ. ' + (bkkParts().y + 543) + ')', money0(rY.net) + ' บาท', 'รับ ' + money0(rY.received) + (rY.refund ? ' · คืน ' + money0(rY.refund) : '') + ' · ' + int(sY.count) + ' รายการ'],
       ['ค้างชำระทั้งหมด', int(sAll.pendingCount) + ' รายการ', money0(sAll.pending) + ' บาท'],
       ['คืนเงินแล้วทั้งหมด', int(sAll.refundedCount) + ' รายการ', money0(sAll.refundedHere) + ' บาท · ' +
       (cat === 'E' ? 'เคลมประกัน ' + int(sAll.claimCount) : 'ยกเลิก ' + int(sAll.cancelCount)) + ' รายการ']
@@ -1665,7 +1688,32 @@ function amountCell(r) {
   }
 
   /* ============================== 6. ฟอร์มบันทึก/แก้ไข ============================== */
-  function findRecord(cat, id) { return state.data[cat].find(r => r.recordId === id) || null; }
+  /**
+ * ช่องเลือกเวลาแบบ 24 ชั่วโมง (ชม. 00–23 / นาที 00–59)
+ * เหตุผล: <input type="time"> แสดงรูปแบบตามภาษาของเครื่อง บางเครื่องเป็น AM/PM ทำให้บันทึกผิดได้ง่าย
+ */
+function timeField24(value) {
+  const m = String(value || '').match(/^(\d{1,2}):(\d{2})/);
+  const hh = m ? pad2(Math.min(23, +m[1])) : '';
+  const mm = m ? pad2(Math.min(59, +m[2])) : '';
+  let hOpt = '<option value="">ชม.</option>', mOpt = '<option value="">นาที</option>';
+  for (let i = 0; i < 24; i++) hOpt += '<option value="' + pad2(i) + '"' + (pad2(i) === hh ? ' selected' : '') + '>' + pad2(i) + '</option>';
+  for (let i = 0; i < 60; i++) mOpt += '<option value="' + pad2(i) + '"' + (pad2(i) === mm ? ' selected' : '') + '>' + pad2(i) + '</option>';
+  return '<div class="flex items-center gap-2">' +
+    '<select class="field num" id="f-timeH" aria-label="ชั่วโมง (00–23)" style="padding-right:28px">' + hOpt + '</select>' +
+    '<span class="font-semibold">:</span>' +
+    '<select class="field num" id="f-timeM" aria-label="นาที (00–59)" style="padding-right:28px">' + mOpt + '</select>' +
+    '<button type="button" class="btn btn-ghost btn-sm" style="height:42px" id="f-timeNow" title="ใช้เวลาปัจจุบัน">ตอนนี้</button>' +
+    '</div>';
+}
+function readTime24() {
+  const h = $('#f-timeH'), m = $('#f-timeM');
+  if (!h || !m) return '';
+  if (!h.value && !m.value) return '';
+  return (h.value || '00') + ':' + (m.value || '00');
+}
+
+function findRecord(cat, id) { return state.data[cat].find(r => r.recordId === id) || null; }
   function opt(list, sel) { return list.map(v => '<option value="' + esc(v) + '"' + (v === sel ? ' selected' : '') + '>' + esc(v) + '</option>').join(''); }
 
   function openForm(cat, rec) {
@@ -1685,7 +1733,12 @@ function amountCell(r) {
       paymentStatus: 'ชำระแล้ว', paymentMethod: m.paymentMethods[0], remarks: '',
       refundDate: todayKey(), refundAmount: 0, refundMethod: m.paymentMethods[0], refundNote: ''
     };
-    state.form = { cat: cat, editId: isEdit ? rec.recordId : null, amountTouched: isEdit };
+    state.form = {
+    cat: cat, editId: isEdit ? rec.recordId : null, amountTouched: isEdit,
+    // รหัสคำขอ 1 ครั้งต่อ 1 การเปิดฟอร์ม — ถ้าเน็ตหลุดแล้วกดบันทึกซ้ำ เซิร์ฟเวอร์จะรู้ว่าเป็นรายการเดิม
+    reqId: 'REQ-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10),
+        baseRev: isEdit ? num(rec.rev) : null // เลข Revision ตอนเปิดฟอร์ม ใช้ตรวจว่ามีคนแก้ทับระหว่างนี้หรือไม่
+  };
 
     $('#formStripe').style.background = cat === 'E' ? 'linear-gradient(180deg,var(--e-1),var(--e-2))' : 'linear-gradient(180deg,var(--d-1),var(--d-2))';
     $('#formTitle').textContent = (isEdit ? 'แก้ไขรายการ ' : 'บันทึกรายการใหม่ ') + (cat === 'E' ? 'หมวด E — ปรับค่าเสียหาย' : 'หมวด D — ปรับบัตร จยย. สูญหาย');
@@ -1697,7 +1750,7 @@ function amountCell(r) {
     const suggest = nextDocNo();
     const common =
       '<div><label class="label" for="f-date">วันที่<span class="req">*</span></label><input type="date" class="field" id="f-date" value="' + esc(r.date) + '" required></div>' +
-      '<div><label class="label" for="f-time">เวลา</label><input type="time" class="field" id="f-time" value="' + esc(r.time || '') + '"></div>' +
+      '<div><label class="label" for="f-timeH">เวลา (24 ชั่วโมง)</label>' + timeField24(r.time) + '</div>' +
       '<div class="span-2"><label class="label" for="f-docNo">เลขที่เอกสาร / เลขที่ใบเสร็จ<span class="req">*</span></label>' +
         '<div class="flex gap-2"><input type="text" class="field num" id="f-docNo" value="' + esc(r.docNo) + '" placeholder="เช่น ' + esc(suggest) + '" autocomplete="off" style="text-transform:uppercase">' +
         (isEdit ? '' : '<button type="button" class="btn btn-ghost btn-sm" style="height:42px" id="f-docSuggest" title="ใช้เลขถัดจากเลขสูงสุดในระบบ">ใช้ ' + esc(suggest) + '</button>') + '</div>' +
@@ -1760,6 +1813,10 @@ function amountCell(r) {
     if (sug) sug.addEventListener('click', () => { $('#f-docNo').value = nextDocNo(); $('#f-docNo').classList.remove('invalid'); });
     $('#f-docNo').addEventListener('input', e => { const p = e.target.selectionStart; e.target.value = e.target.value.toUpperCase(); e.target.setSelectionRange(p, p); });
     $('#f-paymentStatus').addEventListener('change', syncFormState);
+  $('#f-timeNow').addEventListener('click', () => {
+    const t = nowTime().split(':');
+    $('#f-timeH').value = t[0]; $('#f-timeM').value = t[1];
+  });
   ['f-refundAmount', 'f-refundDate'].forEach(id => { const el = $('#' + id); if (el) el.addEventListener('input', syncFormState); });
     if (cat === 'E') {
       $('#f-damageType').addEventListener('change', () => { f.amountTouched = false; syncFormState(); });
@@ -1815,7 +1872,7 @@ function amountCell(r) {
   function collectForm() {
     const f = state.form, g = id => { const el = $('#f-' + id); return el ? el.value.trim() : ''; };
     const rec = {
-      date: g('date'), time: g('time'), docNo: g('docNo').toUpperCase().replace(/\s+/g, ''), payerName: g('payerName'), idCard: g('idCard'),
+      date: g('date'), time: readTime24(), docNo: g('docNo').toUpperCase().replace(/\s+/g, ''), payerName: g('payerName'), idCard: g('idCard'),
       paymentStatus: g('paymentStatus'), paymentMethod: g('paymentMethod'), remarks: g('remarks')
     };
     if (f.cat === 'E') {
@@ -1905,7 +1962,8 @@ function amountCell(r) {
     const btn = $('#btnSave');
     setBtnLoading(btn, true, 'กำลังบันทึก…');
     try {
-      const payload = { category: f.cat, record: rec, allowDuplicateDoc: !!allowDuplicateDoc };
+      const payload = { category: f.cat, record: rec, allowDuplicateDoc: !!allowDuplicateDoc, clientReqId: f.reqId };
+    if (f.editId && f.baseRev !== null) payload.expectedRev = f.baseRev;
       let res;
       if (f.editId) { payload.recordId = f.editId; res = await callServer('updateRecord', payload); }
       else res = await callServer('saveData', payload);
@@ -1917,6 +1975,7 @@ function amountCell(r) {
       closeModal('formModal');
       // เลื่อนแดชบอร์ดไปยังวันของรายการที่เพิ่ง บันทึก เพื่อให้เห็นผลทันที
       if (!f.editId) state.dash.anchor = saved.date;
+    persistCache();
       setBtnLoading(btn, false);
       renderAll();
       toast('success', (res.message || 'บันทึกข้อมูลสำเร็จ') + ' — ' + saved.docNo + ' (' + money(saved.amount) + ' บาท)', 6000);
@@ -1924,7 +1983,14 @@ function amountCell(r) {
       state.form = null;
     } catch (err) {
       setBtnLoading(btn, false);
-      if (err.code === 'DUPLICATE_DOC') {
+      if (err.code === 'CONFLICT') {
+      showFormError(err.message);
+      toast('warn', 'มีผู้อื่นแก้ไขรายการนี้ก่อนหน้า — ระบบจะโหลดข้อมูลล่าสุดให้', 7000);
+      closeModal('formModal');
+      loadData(true);
+      return;
+    }
+    if (err.code === 'DUPLICATE_DOC') {
         const go = await confirmBox('เลขที่เอกสารซ้ำ', err.message + '\n\nต้องการบันทึกซ้ำหรือไม่? (ควรตรวจสอบกับใบเสร็จจริงก่อน)', 'บันทึกซ้ำ');
         if (go) return submitForm(true);
         showFormError(err.message);
@@ -1997,6 +2063,7 @@ function amountCell(r) {
       state.data[cat] = state.data[cat].filter(x => x.recordId !== id);
       closeModal('detailModal');
       renderAll();
+      persistCache();
       toast('success', 'ลบรายการ ' + (r.docNo || '') + ' สำเร็จ');
     } catch (err) {
       toast('error', err.message);
@@ -2173,15 +2240,25 @@ function openSettings() {
     return { rg: rg, list: list, cats: cats, all: all, refundOnly: refundOnly };
   }
 
-  function a4Head(title, rg, pageNo) {
+  /** เลขที่รายงาน — อ้างอิงช่วงเวลาและหมวดได้ชัด (เช่น RPT-M-202609-ALL) ใช้ตรวจย้อนกลับกับการนำส่งเงิน */
+  function reportNo(rg) {
+    const code = { day: 'D', week: 'W', month: 'M', year: 'Y' }[rg.mode] || 'X';
+    const stamp = rg.mode === 'year' ? rg.start.slice(0, 4) : rg.mode === 'month' ? rg.start.slice(0, 7).replace('-', '') : rg.start.replace(/-/g, '');
+    return 'RPT-' + code + '-' + stamp + '-' + (state.report.cat === 'ALL' ? 'ED' : state.report.cat);
+  }
+  function a4Head(title, rg) {
+    const asOf = state.meta.generatedAt ? String(state.meta.generatedAt).slice(0, 16) : '-';
     return '<div class="rp-head"><div><div class="rp-title">' + esc(title) + '</div>' +
       '<div style="font-size:15px;color:#475569">' + esc(state.meta.orgName) + ' · ' + esc(state.meta.department || '') + '</div></div>' +
       '<div class="rp-meta"><div style="font-family:Kanit;font-weight:600;font-size:16px;color:#1B2433">' + esc(MODE_LABEL[rg.mode]) + ': ' + esc(rg.label) + '</div>' +
       '<div>' + esc(thDate(rg.start) + (rg.start !== rg.end ? ' – ' + thDate(rg.end) : '')) + '</div>' +
+      '<div>เลขที่รายงาน ' + esc(reportNo(rg)) + ' · ข้อมูล ณ ' + esc(asOf) + (state.stale ? ' (ข้อมูลในเครื่อง)' : '') + '</div>' +
       '<div>พิมพ์เมื่อ ' + esc(thNowStamp()) + '</div></div></div>';
   }
   function a4Foot(pageNo) {
-    return '<div class="rp-foot"><span>' + esc(state.meta.appTitle) + ' · ' + APP_VERSION + '</span><span>หน้า ' + pageNo + ' / {{TOTAL}}</span></div>';
+    return '<div class="rp-foot"><span>' + esc(state.meta.appTitle) + ' · ' + APP_VERSION +
+      ' · ยอดเงินคำนวณเฉพาะรายการสถานะ "ชำระแล้ว/คืนเงินแล้ว" · ยกเลิก/เคลมประกัน/ค้างชำระ ไม่นับเป็นเงินนำส่ง</span>' +
+      '<span>หน้า ' + pageNo + ' / {{TOTAL}}</span></div>';
   }
 
   function renderReport() {
@@ -2233,16 +2310,20 @@ function openSettings() {
     // ---------- ตารางสรุปราย bucket (สัปดาห์/เดือน/ปี) ----------
     const inner = buildInnerBuckets(rg);
     if (inner.length) {
+      // แสดงเฉพาะวัน/เดือนที่มีรายการปรับหรือมีการคืนเงินจริง — แถวว่างทำให้รายงานยาวโดยไม่จำเป็น
       const bRows = inner.map(b => {
-        const eP = sumPaidIn(E, b), dP = sumPaidIn(D, b), eC = countIn(E, b), dC = countIn(D, b);
-        const rf = sumRefundIn(allE, b) + sumRefundIn(allD, b);
-        const net = eP + dP - rf;
+        const eC = state.report.cat !== 'D' ? countIn(E, b) : 0, dC = state.report.cat !== 'E' ? countIn(D, b) : 0;
+        const eP = state.report.cat !== 'D' ? sumPaidIn(E, b) : 0, dP = state.report.cat !== 'E' ? sumPaidIn(D, b) : 0;
+        const rf = (state.report.cat !== 'D' ? sumRefundIn(allE, b) : 0) + (state.report.cat !== 'E' ? sumRefundIn(allD, b) : 0);
+        if (!eC && !dC && !eP && !dP && !rf) return null;
+        const net = cents(eP + dP - rf);
         return { html: '<tr><td>' + esc(b.label) + '</td>' +
           (state.report.cat !== 'D' ? '<td class="r">' + (eC ? int(eC) : '-') + '</td><td class="r">' + (eP ? money(eP) : '-') + '</td>' : '') +
           (state.report.cat !== 'E' ? '<td class="r">' + (dC ? int(dC) : '-') + '</td><td class="r">' + (dP ? money(dP) : '-') + '</td>' : '') +
           '<td class="r">' + (rf ? '-' + money(rf) : '-') + '</td>' +
-          '<td class="r"><b>' + (net ? money(net) : '-') + '</b></td></tr>' };
-      });
+          '<td class="r"><b>' + money(net) + '</b></td></tr>' };
+      }).filter(Boolean);
+      if (!bRows.length) bRows.push({ html: '<tr><td colspan="7" class="c" style="color:#94A3B8;padding:18px">ไม่มีรายการปรับในช่วงเวลานี้</td></tr>' });
       const hdr = '<thead><tr><th>' + (rg.mode === 'year' ? 'เดือน' : 'วันที่') + '</th>' +
         (state.report.cat !== 'D' ? '<th class="r">E รายการ</th><th class="r">E รับเงิน (บาท)</th>' : '') +
         (state.report.cat !== 'E' ? '<th class="r">D รายการ</th><th class="r">D รับเงิน (บาท)</th>' : '') +
@@ -2255,7 +2336,9 @@ function openSettings() {
       for (let i = 0; i < bRows.length; i += per) {
         const chunk = bRows.slice(i, i + per), last = i + per >= bRows.length;
         pages.push(a4Head('สรุปยอดนำส่ง' + (rg.mode === 'year' ? 'รายเดือน' : 'รายวัน') + ' — ' + catTitle, rg) +
-          '<div style="margin-top:14px"><table>' + hdr + '<tbody>' + chunk.map(x => x.html).join('') + (last ? tot : '') + '</tbody></table></div>');
+          '<div style="margin-top:14px"><table>' + hdr + '<tbody>' + chunk.map(x => x.html).join('') + (last ? tot : '') + '</tbody></table>' +
+          (last ? '<div style="margin-top:8px;font-size:12px;color:#64748B">* แสดงเฉพาะ' + (rg.mode === 'year' ? 'เดือน' : 'วัน') +
+            'ที่มีรายการปรับหรือมีการคืนเงิน · ยอดนำส่งสุทธิ = รับเงินในวันนั้น − เงินที่คืนในวันนั้น</div>' : '') + '</div>');
       }
     }
 
@@ -2366,6 +2449,11 @@ function openSettings() {
   async function exportReport(kind) {
     const btn = kind === 'pdf' ? $('#btnExportPdf') : $('#btnExportJpg');
     if (!state.loaded) return;
+    if (state.stale) {
+      // ยอดนำส่งต้องมาจากข้อมูลล่าสุดเท่านั้น — ถ้ายังเป็นข้อมูลในเครื่อง ให้ยืนยันก่อน
+      const go = await confirmBox('ข้อมูลยังไม่ได้อัปเดตจากเซิร์ฟเวอร์', 'ตอนนี้แสดงข้อมูลที่บันทึกไว้ในเครื่อง อาจไม่ตรงกับยอดล่าสุด\n\nแนะนำให้กด "รีเฟรชจากชีต" ก่อนพิมพ์รายงานนำส่งเงิน', 'พิมพ์ต่อไป');
+      if (!go) return;
+    }
     const pageCount = $$('#reportPages .a4').length;
     if (pageCount > 40) {
       // แปลงภาพใช้เวลาราว 1 วินาที/หน้า — เตือนก่อน ไม่ให้เข้าใจผิดว่าแอปค้าง
@@ -2425,9 +2513,9 @@ function openSettings() {
   const lock = { visible: true, auto: null, idle: null, clock: null, firstEntry: true, hiddenAt: 0 };
 
   function lockClock() {
-    const d = new Date();
-    $('#lockDate').textContent = 'วัน' + TH_DAYS[d.getDay()] + 'ที่ ' + d.getDate() + ' ' + TH_MONTHS[d.getMonth()] + ' พ.ศ. ' + (d.getFullYear() + 543);
-    $('#lockTime').innerHTML = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + '<span class="sec">:' + pad2(d.getSeconds()) + '</span>';
+    const p = bkkParts(), d = bkkDate();
+    $('#lockDate').textContent = 'วัน' + TH_DAYS[d.getDay()] + 'ที่ ' + p.d + ' ' + TH_MONTHS[p.m - 1] + ' พ.ศ. ' + (p.y + 543);
+    $('#lockTime').innerHTML = p.hh + ':' + p.mm + '<span class="sec">:' + p.ss + '</span>';
   }
 
   /** ประกายเล็กๆ ลอยขึ้นบนหน้าโลโก้ (สร้างครั้งเดียวพอ) */
@@ -2616,48 +2704,117 @@ function openSettings() {
     try { history.replaceState(null, '', '#' + tab); } catch (e) { /* iframe */ }
   }
 
-  async function loadData(forceRefresh) {
-    const first = !state.loaded;
-    if (first) {
-      $('#overlay').classList.remove('hidden-el');
-    } else {
-      showBusy(true, forceRefresh ? 'กำลังอ่านไฟล์ในโฟลเดอร์ใหม่ทั้งหมด…' : 'กำลังโหลดข้อมูลล่าสุด…');
+  /* ---------- แคชข้อมูลในเครื่อง (แสดงผลทันทีตอนเปิดแอป แล้วค่อยอัปเดตเบื้องหลัง) ---------- */
+  const LOCAL_CACHE_KEY = 'sbkFineCache_v11';
+  const LOCAL_CACHE_MAX_AGE = 7 * 86400000; // เก็บไว้ไม่เกิน 7 วัน
+
+  /**
+   * บันทึกข้อมูลล่าสุดลงเครื่อง — ตัดเลขบัตรประชาชนออก เพื่อไม่ให้ข้อมูลส่วนบุคคลค้างในเครื่องที่ใช้ร่วมกัน
+   * (เลขบัตรจะกลับมาเมื่อโหลดข้อมูลสดจากเซิร์ฟเวอร์เสร็จ ซึ่งใช้เวลาไม่กี่วินาที)
+   */
+  function persistCache() {
+    try {
+      if (state.demo) return;
+      const strip = r => { const o = Object.assign({}, r); delete o.idCard; return o; };
+      const payload = {
+        t: Date.now(), url: apiUrl(), v: APP_VERSION,
+        E: state.data.E.map(strip), D: state.data.D.map(strip),
+        meta: Object.assign({}, state.meta, { sources: state.meta.sources || [] })
+      };
+      localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(payload));
+    } catch (e) {
+      // พื้นที่เต็ม/ถูกปิด → ข้ามไป ไม่กระทบการใช้งาน
+      try { localStorage.removeItem(LOCAL_CACHE_KEY); } catch (e2) { /* ignore */ }
     }
+  }
+  function readCache() {
+    try {
+      const raw = localStorage.getItem(LOCAL_CACHE_KEY);
+      if (!raw) return null;
+      const c = JSON.parse(raw);
+      if (!c || c.url !== apiUrl() || c.v !== APP_VERSION) return null;       // เปลี่ยน URL/เวอร์ชัน → ไม่ใช้แคชเก่า
+      if (!Array.isArray(c.E) || !Array.isArray(c.D)) return null;
+      if (Date.now() - c.t > LOCAL_CACHE_MAX_AGE) return null;
+      return c;
+    } catch (e) { return null; }
+  }
+  function clearLocalCache() { try { localStorage.removeItem(LOCAL_CACHE_KEY); } catch (e) { /* ignore */ } }
+
+  /** นำข้อมูล (จากเซิร์ฟเวอร์หรือแคช) เข้าสู่ state แล้วแสดงผล */
+  function applyData(res, fromCache) {
+    state.data.E = (res.E || []).map(r => Object.assign({ category: 'E' }, r));
+    state.data.D = (res.D || []).map(r => Object.assign({ category: 'D' }, r));
+    state.meta = Object.assign({}, DEFAULT_META, res.meta || {});
+    state.demo = !hasGAS() && !hasApi();
+    state.loaded = true;
+    state.stale = !!fromCache;
+    $('#demoBadge').classList.toggle('hidden-el', !state.demo);
+    $('#appTitle').textContent = state.meta.appTitle;
+    $('#appOrg').textContent = state.meta.orgName + ' · ' + (state.meta.department || '');
+    renderAll();
+    $('#lockOrg').textContent = state.meta.orgName + ' · ' + (state.meta.department || '');
+    $('#lockStatus').textContent = (fromCache ? 'ข้อมูลที่บันทึกไว้ในเครื่อง · กำลังอัปเดต… · ' : 'ข้อมูลพร้อมใช้งาน · ') +
+      'หมวด E ' + int(state.data.E.length) + ' · หมวด D ' + int(state.data.D.length) + ' รายการ';
+  }
+
+  function setSyncBadge(text, kind) {
+    const b = $('#syncBadge');
+    if (!b) return;
+    if (!text) { b.classList.add('hidden-el'); return; }
+    b.className = 'badge ' + (kind || 'st-refund');
+    b.textContent = text;
+  }
+
+  let loadSeq = 0; // กันผลลัพธ์ของคำขอเก่ามาทับคำขอใหม่ (กดรีเฟรชรัวๆ)
+  async function loadData(forceRefresh) {
+    const mySeq = ++loadSeq;
+    const first = !state.loaded;
+    let fromCache = false;
+
+    // 1) เปิดแอปครั้งแรก: แสดงข้อมูลล่าสุดที่เคยโหลดไว้ทันที (ไม่ต้องรอเครือข่าย)
+    if (first && !forceRefresh) {
+      const c = readCache();
+      if (c) {
+        try { applyData(c, true); fromCache = true; } catch (e) { clearLocalCache(); }
+      }
+    }
+    if (first && !fromCache) $('#overlay').classList.remove('hidden-el');
+    else if (!first && forceRefresh) showBusy(true, 'กำลังอ่านไฟล์ในโฟลเดอร์ใหม่ทั้งหมด…');
+    if (fromCache) { $('#overlay').classList.add('hidden-el'); setSyncBadge('กำลังอัปเดตข้อมูล…'); }
+
     const btn = $('#btnReload');
     btn.disabled = true;
     try {
+      // 2) ดึงข้อมูลสดจากเซิร์ฟเวอร์
       const res = await callServer('getData', !!forceRefresh);
-      state.data.E = (res.E || []).map(r => Object.assign({ category: 'E' }, r));
-      state.data.D = (res.D || []).map(r => Object.assign({ category: 'D' }, r));
-      state.meta = Object.assign({}, DEFAULT_META, res.meta || {});
-      state.demo = !hasGAS() && !hasApi();
-      state.loaded = true;
-      $('#demoBadge').classList.toggle('hidden-el', !state.demo);
-      $('#appTitle').textContent = state.meta.appTitle;
-      $('#appOrg').textContent = state.meta.orgName + ' · ' + (state.meta.department || '');
-      renderAll();
+      if (mySeq !== loadSeq) return; // มีคำขอใหม่กว่าแล้ว — ทิ้งผลนี้
+      applyData(res, false);
+      persistCache();
       showBusy(false);
-      $('#lockOrg').textContent = state.meta.orgName + ' · ' + (state.meta.department || '');
-      $('#lockStatus').textContent = 'ข้อมูลพร้อมใช้งาน · หมวด E ' + int(state.data.E.length) + ' · หมวด D ' + int(state.data.D.length) + ' รายการ';
+      setSyncBadge('');
       const noDate = allRecords().filter(r => !isValidKey(r.date)).length;
-    if (noDate) toast('warn', 'มี ' + int(noDate) + ' รายการที่อ่านวันที่จากชีตไม่ได้ จึงไม่ถูกนับในรายงานตามช่วงเวลา (ดูปุ่ม "แหล่งข้อมูล")', 8000);
-    const probs = (state.meta.sources || []).filter(s => s.status !== 'ok');
+      if (noDate) toast('warn', 'มี ' + int(noDate) + ' รายการที่อ่านวันที่จากชีตไม่ได้ จึงไม่ถูกนับในรายงานตามช่วงเวลา (ดูปุ่ม "แหล่งข้อมูล")', 8000);
+      const probs = (state.meta.sources || []).filter(s => s.status !== 'ok');
       if (state.demo && first) toast('info', 'โหมดทดลอง: ยังไม่ได้ตั้งค่า API_URL จึงแสดงข้อมูลจำลอง');
       else if (probs.length) toast('warn', 'มี ' + probs.length + ' ไฟล์ในโฟลเดอร์ที่อ่านไม่ได้ — กดปุ่ม "แหล่งข้อมูล" เพื่อดูรายละเอียด', 7000);
-      else if (!first) toast('success', 'โหลดข้อมูลล่าสุดแล้ว (E ' + int(state.data.E.length) + ' · D ' + int(state.data.D.length) + ' รายการ)');
+      else if (!first && forceRefresh) toast('success', 'โหลดข้อมูลล่าสุดแล้ว (E ' + int(state.data.E.length) + ' · D ' + int(state.data.D.length) + ' รายการ)');
     } catch (err) {
-      if (first) {
+      if (mySeq !== loadSeq) return;
+      showBusy(false);
+      if (fromCache || (!first && state.loaded)) {
+        // ยังมีข้อมูลเดิมให้ดูได้ → ไม่บล็อกหน้าจอ แต่บอกชัดว่าเป็นข้อมูลเก่า
+        setSyncBadge('ข้อมูลอาจไม่เป็นปัจจุบัน', 'st-pending');
+        toast('error', 'อัปเดตข้อมูลไม่สำเร็จ — กำลังแสดงข้อมูลล่าสุดที่มี\n' + err.message, 9000);
+      } else {
+        $('#overlay').classList.remove('hidden-el');
         $('#overlayMsg').textContent = 'โหลดข้อมูลไม่สำเร็จ';
         $('#overlaySub').textContent = err.message + '\nตรวจสอบสิทธิ์การเข้าถึงโฟลเดอร์/ไฟล์ แล้วลองใหม่อีกครั้ง';
         $('#overlaySub').style.whiteSpace = 'pre-line';
         $('#overlaySpin').classList.add('hidden-el');
         $('#overlayActions').classList.remove('hidden-el');
-      } else {
-        showBusy(false);
-        toast('error', 'โหลดข้อมูลไม่สำเร็จ: ' + err.message);
       }
     } finally {
-      btn.disabled = false;
+      if (mySeq === loadSeq) btn.disabled = false;
     }
   }
 
