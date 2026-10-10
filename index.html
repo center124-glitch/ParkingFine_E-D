@@ -4,14 +4,15 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D — SBK v11</title>
+  <title>ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D — SBK v13</title>
   <!--
-    SBK_ParkingFine_ED_v11.html — ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D)
-    ศูนย์การค้าซีคอนบางแค (SBK) · เวอร์ชัน v2
-    ไฟล์เดียวครบ: HTML + CSS + JavaScript  (ใช้คู่กับ Code_ParkingFine_ED_v11.gs)
+    SBK_ParkingFine_ED_v13.html — ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D)
+    ศูนย์การค้าซีคอนบางแค (SBK) · เวอร์ชัน v13
+    ไฟล์เดียวครบ: HTML + CSS + JavaScript  (ใช้คู่กับ Code_ParkingFine_ED_v13.gs)
     เปิดไฟล์นี้ได้เลย (ดับเบิลคลิก / วางบนเว็บเซิร์ฟเวอร์ / ส่งให้ทีม) ไม่ต้องอัปขึ้น Apps Script
     เชื่อมต่อ Google Sheets ผ่าน Web App URL ที่ฝังไว้ในตัวแปร API_URL ด้านล่าง (JSONP + POST)
-    v11: เปิดแอปเร็วขึ้น (แสดงข้อมูลล่าสุดทันที) + เวลาแบบ 24 ชม. + รายงานมาตรฐาน + กันบันทึกซ้ำ/แก้ทับกัน
+    v13: ที่เก็บข้อมูลมีที่เดียว = ตารางรายเดือนในไฟล์รายปี (เลิกใช้ไฟล์ฐานข้อมูลแยก และไม่เก็บข้อมูลรายการในเครื่อง)
+         โหลดครั้งเดียวต่อการเปิดแอป · แก้ไข/ยกเลิกได้ทุกแถว · แคชฝั่งเซิร์ฟเวอร์ผูกกับเวลาแก้ไขไฟล์ (เร็วและไม่ได้ข้อมูลเก่า)
   -->
   <meta name="theme-color" content="#EA580C">
   <meta name="application-name" content="ยอดปรับ E/D">
@@ -474,7 +475,6 @@
           <h1 class="font-head text-[17px] sm:text-[19px] font-semibold leading-snug truncate" id="appTitle">ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D</h1>
           <div class="muted text-[13px] truncate" id="appOrg">ศูนย์การค้าซีคอนบางแค (SBK) · แผนกลานจอดรถ</div>
         </div>
-        <span id="syncBadge" class="badge st-refund hidden-el" aria-live="polite"></span>
         <span id="demoBadge" class="badge st-pending hidden-el" title="ยังไม่ได้ตั้งค่า API_URL จึงใช้ข้อมูลจำลอง">โหมดทดลอง</span>
         <button class="icon-btn" id="btnSources" type="button" title="แหล่งข้อมูล (ไฟล์ในโฟลเดอร์)" aria-label="แหล่งข้อมูล">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
@@ -537,6 +537,7 @@
           <div class="muted text-[13px]" id="dashPeriodSub">—</div>
         </div>
         <div class="flex gap-2">
+          <button class="btn btn-ghost btn-sm" type="button" id="btnAudit" title="ตรวจความถูกต้องของข้อมูลในช่วงที่เลือก">ตรวจข้อมูล</button>
           <button class="btn btn-e btn-sm" type="button" data-open-form="E">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>หมวด E
           </button>
@@ -682,7 +683,6 @@
   <footer class="max-w-7xl mx-auto px-4 sm:px-6 pb-8 muted text-[12.5px] no-print flex flex-wrap gap-x-4 gap-y-1">
     <span id="footerInfo">—</span>
     <a id="linkFolder" href="#" target="_blank" rel="noopener" class="underline">เปิดโฟลเดอร์ข้อมูล</a>
-    <a id="linkDb" href="#" target="_blank" rel="noopener" class="underline">เปิดฐานข้อมูลหน้าเว็บ</a>
   </footer>
 
   <!-- ================= Modal: ฟอร์มบันทึก/แก้ไข ================= -->
@@ -733,9 +733,13 @@
       <div class="modal-body" style="padding-top:22px;">
         <h3 class="text-[18px] font-semibold" id="confirmTitle">ยืนยันการทำรายการ</h3>
         <p class="muted mt-2 text-[15px]" id="confirmText" style="white-space:pre-line;">—</p>
+        <div id="confirmInputWrap" class="mt-3 hidden-el">
+          <label class="label" for="confirmInput" id="confirmInputLabel">ระบุ</label>
+          <input class="field" id="confirmInput" maxlength="200" autocomplete="off">
+        </div>
       </div>
       <div class="modal-foot">
-        <button class="btn btn-ghost" type="button" id="confirmNo">ยกเลิก</button>
+        <button class="btn btn-ghost" type="button" id="confirmNo">ไม่ใช่ / ปิด</button>
         <button class="btn btn-danger" type="button" id="confirmYes">ยืนยัน</button>
       </div>
     </div>
@@ -745,7 +749,7 @@
 
   <script>
   /* ============================================================================
-   *  Frontend Logic — SBK_ParkingFine_ED_v11.html
+   *  Frontend Logic — SBK_ParkingFine_ED_v13.html
    *  ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D) — SBK
    *
    *  โครงสร้าง
@@ -763,7 +767,7 @@
   'use strict';
 
   /* ============================== 0. ค่าคงที่ / State ============================== */
-  const APP_VERSION = 'v11';
+  const APP_VERSION = 'v13';
 
 /* --------------------------------------------------------------------------
  *  ★ จุดเดียวที่ต้องแก้เวลาเปลี่ยน Deployment ★
@@ -786,7 +790,6 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbyEXhAEkP_5m4gYs6F1nRK1
     paymentMethods: ['เงินสด', 'โอนเงินผ่านธนาคาร'],
     docPrefix: 'FR',
     folderUrl: '',
-    dbUrl: '',
     sources: []
   };
 
@@ -815,7 +818,8 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbyEXhAEkP_5m4gYs6F1nRK1
     charts: {},
     form: null,        // { cat, editId, amountTouched, file }
     confirmResolve: null,
-    reportChart: null
+    reportChart: null,
+    mutations: 0       // นับจำนวนครั้งที่บันทึก/แก้ไข — กันผลโหลดที่เริ่มก่อนการบันทึกมาแสดงทับ
   };
 
   /* ============================== 1. Utilities ============================== */
@@ -924,6 +928,8 @@ function setApiUrl(u) {
   try { u ? localStorage.setItem('sbkFineApiUrl', u) : localStorage.removeItem('sbkFineApiUrl'); } catch (e) { /* ignore */ }
 }
 function hasApi() { return /^https:\/\//.test(apiUrl()); }
+function apiKey() { try { return localStorage.getItem('sbkFineApiKey') || ''; } catch (e) { return ''; } }
+function setApiKey(k) { try { k ? localStorage.setItem('sbkFineApiKey', k) : localStorage.removeItem('sbkFineApiKey'); } catch (e) { /* ignore */ } }
 
 /** แปลงชื่อฟังก์ชัน + อาร์กิวเมนต์ → พารามิเตอร์ที่ Code.gs (routeApi_) เข้าใจ */
 function buildParams(fn, args) {
@@ -931,7 +937,7 @@ function buildParams(fn, args) {
     case 'getData': return { action: 'getData', refresh: args[0] === true };
     case 'saveData': return { action: 'saveData', payload: args[0] };
     case 'updateRecord': return { action: 'updateRecord', payload: args[0] };
-    case 'deleteRecord': return { action: 'deleteRecord', category: args[0], recordId: args[1] };
+    case 'cancelRecord': return { action: 'cancelRecord', payload: args[0] };
     case 'diagnose': return { action: 'diagnose' };
     default: return { action: fn };
   }
@@ -1018,6 +1024,7 @@ function callServer(fn) {
   if (!hasApi()) return demoApi(fn, args);
 
   const params = buildParams(fn, args);
+  if (apiKey()) params.key = apiKey(); // ส่งรหัสเข้าใช้งานไปทุกคำขอ (ถ้าตั้งไว้)
   const run = async () => {
     if (fn === 'getData' || fn === 'diagnose') return jsonpCall(params);
     try {
@@ -1029,9 +1036,13 @@ function callServer(fn) {
   };
   return run().then(res => {
     if (!res) throw new Error('ไม่ได้รับข้อมูลจากเซิร์ฟเวอร์');
-    if (res.ok === false) { const e = new Error(res.message || 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์'); e.code = res.code; throw e; }
+    if (res.ok === false) {
+      const e = new Error(res.message || 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์'); e.code = res.code;
+      if (res.code === 'AUTH') setTimeout(() => { try { openSettings(); } catch (x) { /* ignore */ } }, 300);
+      throw e;
+    }
     // ตรวจว่าผลลัพธ์ตรงกับคำสั่งที่ส่งไปจริง (กันกรณีได้คำตอบของคำสั่งอื่นแล้วเข้าใจผิดว่าบันทึกสำเร็จ)
-    if ((fn === 'saveData' || fn === 'updateRecord') && !(res.record && res.record.recordId)) {
+    if ((fn === 'saveData' || fn === 'updateRecord' || fn === 'cancelRecord') && !(res.record && res.record.recordId)) {
       throw new Error('ผลลัพธ์จากเซิร์ฟเวอร์ไม่ตรงกับคำสั่ง — กรุณาตรวจสอบในชีตก่อนบันทึกซ้ำ');
     }
     if (fn === 'getData' && !(Array.isArray(res.E) && Array.isArray(res.D))) {
@@ -1064,7 +1075,7 @@ function callServer(fn) {
           idCard: '0-0000-00000-' + pad2(n % 100) + '-0', damageType: type, damageDetail: nights ? type + ' ' + nights + ' คืน' : 'รายละเอียดตัวอย่าง',
           nights: nights, amount: amount, paymentStatus: claim ? 'เคลมประกัน' : 'ชำระแล้ว',
           paymentMethod: claim ? 'เคลมประกัน' : pick(['โอนเงินผ่านธนาคาร', 'โอนเงินผ่านธนาคาร', 'เงินสด']),
-          remarks: '', attachmentUrl: '', source: n % 3 ? 'LEGACY' : 'APP', readOnly: !!(n % 3), sourceFile: 'ไฟล์ตัวอย่าง', sourceUrl: '#'
+          remarks: '', rev: 0, sourceFile: 'ไฟล์ตัวอย่าง', sourceUrl: '#'
         });
       }
       const k = rnd() < 0.55 ? 1 : 0;
@@ -1076,7 +1087,7 @@ function callServer(fn) {
           idCard: '0-0000-00000-' + pad2(n % 100) + '-0', plateNo: '1กข ' + (100 + n), cardNo: String(n).padStart(4, '0'),
           cardType: pick(['บัตรรายวัน', 'บัตรรายวัน', 'บัตรรายเดือน', 'บัตรพนักงาน']), fineAmount: cancel ? 0 : 200, extraFee: 0,
           amount: cancel ? 0 : 200, paymentStatus: cancel ? 'ยกเลิก' : 'ชำระแล้ว', paymentMethod: cancel ? '' : pick(['โอนเงินผ่านธนาคาร', 'เงินสด']),
-          remarks: '', attachmentUrl: '', source: n % 3 ? 'LEGACY' : 'APP', readOnly: !!(n % 3), sourceFile: 'ไฟล์ตัวอย่าง', sourceUrl: '#'
+          remarks: '', rev: 0, sourceFile: 'ไฟล์ตัวอย่าง', sourceUrl: '#'
         });
       }
     }
@@ -1103,7 +1114,7 @@ function callServer(fn) {
         const p = args[0], rec = clone(p.record);
         const dup = db[p.category].find(r => String(r.docNo).toUpperCase() === String(rec.docNo).toUpperCase());
         if (dup && !p.allowDuplicateDoc) { const e = new Error('เลขที่เอกสาร ' + rec.docNo + ' มีอยู่แล้ว (วันที่ ' + dup.date + ' : ' + dup.payerName + ')'); e.code = 'DUPLICATE_DOC'; throw e; }
-        rec.recordId = p.category + '-DEMO-' + Date.now(); rec.category = p.category; rec.source = 'APP'; rec.readOnly = false;
+        rec.recordId = p.category + '-DEMO-' + Date.now(); rec.category = p.category; rec.rev = 1; rec.hasMeta = true; rec.sourceFile = 'ไฟล์ตัวอย่าง';
         if (p.category === 'D') rec.amount = num(rec.fineAmount) + num(rec.extraFee);
         db[p.category].push(rec);
         return { ok: true, record: clone(rec), message: 'บันทึกข้อมูลสำเร็จ (โหมดทดลอง)' };
@@ -1111,14 +1122,19 @@ function callServer(fn) {
       case 'updateRecord': {
         const p = args[0], list = db[p.category], i = list.findIndex(r => r.recordId === p.recordId);
         if (i < 0) throw new Error('ไม่พบรายการ');
+        if (p.expectedRev !== undefined && p.expectedRev !== null && num(p.expectedRev) !== num(list[i].rev)) { const e = new Error('รายการนี้ถูกแก้ไขไปแล้ว'); e.code = 'CONFLICT'; throw e; }
         Object.assign(list[i], p.record);
+        list[i].rev = num(list[i].rev) + 1;
         if (p.category === 'D') list[i].amount = num(list[i].fineAmount) + num(list[i].extraFee);
         return { ok: true, record: clone(list[i]), message: 'แก้ไขข้อมูลสำเร็จ (โหมดทดลอง)' };
       }
-      case 'deleteRecord': {
-        db[args[0]] = db[args[0]].filter(r => r.recordId !== args[1]);
-        return { ok: true };
+      case 'cancelRecord': {
+        const p = args[0], r = db[p.category].find(x => x.recordId === p.recordId);
+        if (!r) throw new Error('ไม่พบรายการ');
+        Object.assign(r, { paymentStatus: 'ยกเลิก', paymentMethod: '', amount: 0, fineAmount: 0, extraFee: 0, remarks: p.reason || '', rev: num(r.rev) + 1 });
+        return { ok: true, record: clone(r), message: 'ยกเลิกรายการแล้ว (โหมดทดลอง)' };
       }
+      case 'ping': return { ok: true, version: 'demo', storage: 'yearly-files' };
       default: throw new Error('ไม่รู้จักคำสั่ง ' + fn);
     }
   }
@@ -1209,7 +1225,59 @@ const RECEIVED_STATUSES = ['ชำระแล้ว', 'คืนเงินแ
     return { total: Math.round(total * 100) / 100, count: count, cash: cash, transfer: transfer };
   }
 
-  /** ยอดนำส่งสุทธิของช่วงเวลา = เงินที่รับในช่วง − เงินที่คืนในช่วง */
+  /**
+ * ตรวจความถูกต้องของข้อมูลในช่วงเวลา — หาจุดที่ "อาจ" ผิดพลาดให้เจ้าหน้าที่ตรวจทานก่อนนำส่งเงิน
+ * ระบบไม่แก้ข้อมูลให้เอง เพราะบางกรณีอาจถูกต้องตามจริง (เช่น ปรับพิเศษตามดุลยพินิจ)
+ */
+function auditRecords(list, rg, allList) {
+  const rates = state.meta.overnightRates || {};
+  const issues = { rate: [], dupDoc: [], missing: [], pending: [], noDate: 0, total: 0 };
+  const today = parseKey(todayKey());
+
+  // 1) ยอดเงินไม่ตรงอัตราค่าปรับจอดค้างคืน (จำนวนคืน × อัตรา)
+  list.forEach(r => {
+    if (r.category !== 'E' || !rates[r.damageType]) return;
+    if (r.paymentStatus === 'ยกเลิก' || r.paymentStatus === 'เคลมประกัน') return;
+    const n = num(r.nights);
+    if (!n) return;
+    const expected = n * rates[r.damageType];
+    if (cents(r.amount) !== cents(expected)) issues.rate.push({ r: r, expected: expected });
+  });
+
+  // 2) เลขที่เอกสารซ้ำ (ในหมวดเดียวกัน ภายในช่วงเวลา)
+  const byDoc = {};
+  list.forEach(r => {
+    const k = r.category + '|' + String(r.docNo || '').toUpperCase().replace(/\s+/g, '');
+    if (!r.docNo) return;
+    (byDoc[k] = byDoc[k] || []).push(r);
+  });
+  Object.keys(byDoc).forEach(k => { if (byDoc[k].length > 1) issues.dupDoc.push({ docNo: byDoc[k][0].docNo, cat: byDoc[k][0].category, recs: byDoc[k] }); });
+
+  // 3) ข้อมูลสำคัญไม่ครบ
+  list.forEach(r => {
+    const miss = [];
+    if (!r.docNo) miss.push('เลขที่เอกสาร');
+    if (!r.payerName) miss.push('ชื่อผู้ชำระ');
+    if (isReceived(r) && !r.paymentMethod) miss.push('ช่องทางชำระ');
+    if (miss.length) issues.missing.push({ r: r, miss: miss });
+  });
+
+  // 4) ค้างชำระ (ทุกช่วงเวลา จนถึงวันสิ้นสุดช่วง) พร้อมจำนวนวันที่ค้าง
+  (allList || list).forEach(r => {
+    if (r.paymentStatus !== 'ค้างชำระ' || !isValidKey(r.date) || r.date > rg.end) return;
+    const days = Math.max(0, Math.round((today - parseKey(r.date)) / 86400000));
+    issues.pending.push({ r: r, days: days });
+  });
+  issues.pending.sort((a, b) => b.days - a.days);
+
+  // 5) รายการที่อ่านวันที่ไม่ได้ (ไม่ถูกนับในรายงานตามช่วงเวลา)
+  issues.noDate = (allList || list).filter(r => !isValidKey(r.date)).length;
+
+  issues.total = issues.rate.length + issues.dupDoc.length + issues.missing.length + issues.pending.length + (issues.noDate ? 1 : 0);
+  return issues;
+}
+
+/** ยอดนำส่งสุทธิของช่วงเวลา = เงินที่รับในช่วง − เงินที่คืนในช่วง */
   function remittance(list, rg) {
     const s = summarize(list.filter(r => inRange(r, rg)));
     const rf = sumRefunds(list, rg);
@@ -1265,6 +1333,18 @@ const RECEIVED_STATUSES = ['ชำระแล้ว', 'คืนเงินแ
   }
   /** ยอดนำส่งสุทธิของ bucket (ใช้ในกราฟและตารางรายงาน) */
   function sumNetIn(list, b) { return Math.round((sumPaidIn(list, b) - sumRefundIn(list, b)) * 100) / 100; }
+/** ยอดนำส่งสุทธิแยกช่องทาง — เงินสดสุทธิคือยอดที่ต้องนำฝากจริง */
+function sumNetByMethodIn(list, b, method) {
+  let t = 0;
+  list.forEach(r => {
+    if (isReceived(r) && r.paymentMethod === method && r.date >= b.start && r.date <= b.end) t += Math.round(num(r.amount) * 100);
+    if (isRefunded(r) && r.refundMethod === method) {
+      const d = r.refundDate || r.date;
+      if (d >= b.start && d <= b.end) t -= Math.round(num(r.refundAmount) * 100);
+    }
+  });
+  return t / 100;
+}
   function countIn(list, b) { return list.reduce((t, r) => t + (r.date >= b.start && r.date <= b.end ? 1 : 0), 0); }
 
   /** กลุ่มประเภทรายการ (E แยกตามประเภทความเสียหาย, D รวมเป็นกลุ่มเดียว) */
@@ -1304,9 +1384,8 @@ const RECEIVED_STATUSES = ['ชำระแล้ว', 'คืนเงินแ
     if (state.tab === 'report') safe('รายงาน', renderReport);
     const m = state.meta;
     $('#footerInfo').textContent = 'อัปเดตข้อมูล: ' + thNowStamp() + ' · หมวด E ' + int(state.data.E.length) + ' รายการ · หมวด D ' + int(state.data.D.length) + ' รายการ · ' + APP_VERSION;
-    const lf = $('#linkFolder'), ld = $('#linkDb');
+    const lf = $('#linkFolder');
     lf.classList.toggle('hidden-el', !m.folderUrl); lf.href = m.folderUrl || '#';
-    ld.classList.toggle('hidden-el', !m.dbUrl); ld.href = m.dbUrl || '#';
   }
 
   function renderDashboard() {
@@ -1351,6 +1430,13 @@ const RECEIVED_STATUSES = ['ชำระแล้ว', 'คืนเงินแ
     $('#kpiCountSub').textContent = 'E ' + int(E.length) + ' · D ' + int(D.length) + ' · วันนี้ ' + int(todayCount) + ' รายการ';
 
     renderDashCharts(rg, E.concat(D));
+  // ป้ายจำนวนจุดที่ควรตรวจทานในช่วงนี้ (ช่วยให้เห็นก่อนนำส่งเงิน)
+  const au = auditRecords(E.concat(D), rg, allRecords());
+  const ab = $('#btnAudit');
+  if (ab) {
+    ab.textContent = au.total ? 'ตรวจข้อมูล (' + au.total + ')' : 'ตรวจข้อมูล ✓';
+    ab.style.color = au.total ? 'var(--warn)' : 'var(--ok)';
+  }
   }
 
   function chartTheme() {
@@ -1549,23 +1635,22 @@ function amountCell(r) {
 
   function actionButtons(r) {
     const a = ['<button type="button" data-act="view" data-cat="' + r.category + '" data-id="' + esc(r.recordId) + '" title="ดูรายละเอียด" aria-label="ดูรายละเอียด">' + ICONS.eye + '</button>'];
-    if (r.readOnly) {
-      // รายการจากไฟล์เดิม: แก้ที่ชีตต้นฉบับ (ลิงก์ไปแถวนั้นตรงๆ) เพื่อไม่ให้ข้อมูล 2 ที่ขัดกัน
-      if (r.sourceUrl && r.sourceUrl !== '#') a.push('<a href="' + esc(r.sourceUrl) + '" target="_blank" rel="noopener" title="เปิดแถวนี้ในชีตต้นฉบับ" aria-label="เปิดชีตต้นฉบับ">' + ICONS.sheet + '</a>');
-    } else {
-      if (r.paymentStatus === 'ชำระแล้ว') {
+    // v13: ทุกแถวอยู่ในไฟล์รายปีที่เดียว → แก้ไข/คืนเงิน/ยกเลิกได้ทุกรายการ
+    if (r.paymentStatus === 'ชำระแล้ว') {
       a.push('<button type="button" data-act="refund" data-cat="' + r.category + '" data-id="' + esc(r.recordId) + '" title="บันทึกคืนเงิน / คืนบัตร" aria-label="บันทึกคืนเงิน">' + ICONS.refund + '</button>');
     }
     a.push('<button type="button" data-act="edit" data-cat="' + r.category + '" data-id="' + esc(r.recordId) + '" title="แก้ไข" aria-label="แก้ไข">' + ICONS.edit + '</button>');
-      a.push('<button type="button" class="del" data-act="delete" data-cat="' + r.category + '" data-id="' + esc(r.recordId) + '" title="ลบ" aria-label="ลบ">' + ICONS.del + '</button>');
+    if (r.paymentStatus !== 'ยกเลิก') {
+      a.push('<button type="button" class="del" data-act="delete" data-cat="' + r.category + '" data-id="' + esc(r.recordId) + '" title="ยกเลิกรายการ" aria-label="ยกเลิกรายการ">' + ICONS.del + '</button>');
     }
+    if (r.sourceUrl && r.sourceUrl !== '#') a.push('<a href="' + esc(r.sourceUrl) + '" target="_blank" rel="noopener" title="เปิดแถวนี้ในชีต" aria-label="เปิดแถวในชีต">' + ICONS.sheet + '</a>');
     return '<div class="act">' + a.join('') + '</div>';
   }
 
   /** สร้างโครงการ์ดตาราง (ช่องค้นหา/ตัวกรอง/ตาราง/แบ่งหน้า) ครั้งเดียวตอน init */
   function buildTableCard(id) {
     const def = TABLE_DEFS[id];
-    state.tables[id] = { search: '', cat: 'ALL', status: 'ALL', source: 'ALL', sortKey: 'date', sortDir: 'desc', page: 1, pageSize: def.pageSize };
+    state.tables[id] = { search: '', cat: 'ALL', status: 'ALL', sortKey: 'date', sortDir: 'desc', page: 1, pageSize: def.pageSize };
     const host = $('[data-table-host="' + id + '"]');
     const statusOpts = ['<option value="ALL">ทุกสถานะ</option>'].concat(state.meta.paymentStatuses.map(s => '<option>' + esc(s) + '</option>')).join('');
     host.innerHTML =
@@ -1575,7 +1660,6 @@ function amountCell(r) {
           '<input type="search" class="field" style="width:230px;height:38px" id="' + id + '-search" placeholder="ค้นหา ชื่อ / เลขที่เอกสาร / เลขบัตร" aria-label="ค้นหา">' +
           (id === 'dash' ? '<select class="field" style="width:auto;height:38px" id="' + id + '-cat" aria-label="กรองหมวด"><option value="ALL">ทุกหมวด</option><option value="E">หมวด E</option><option value="D">หมวด D</option></select>' : '') +
           '<select class="field" style="width:auto;height:38px" id="' + id + '-status" aria-label="กรองสถานะ">' + statusOpts + '</select>' +
-          '<select class="field" style="width:auto;height:38px" id="' + id + '-source" aria-label="กรองแหล่งข้อมูล"><option value="ALL">ทุกแหล่งข้อมูล</option><option value="LEGACY">จากไฟล์เดิม</option><option value="APP">บันทึกผ่านเว็บ</option></select>' +
         '</div>' +
         '<div class="tbl-wrap"><table class="data" id="' + id + '-table"><thead></thead><tbody></tbody></table></div>' +
         '<div class="p-4 flex flex-wrap items-center gap-3 justify-between">' +
@@ -1594,7 +1678,6 @@ function amountCell(r) {
     $('#' + id + '-search').addEventListener('input', debounce(e => { st.search = e.target.value.trim().toLowerCase(); rerender(); }, 200));
     if (id === 'dash') $('#' + id + '-cat').addEventListener('change', e => { st.cat = e.target.value; rerender(); });
     $('#' + id + '-status').addEventListener('change', e => { st.status = e.target.value; rerender(); });
-    $('#' + id + '-source').addEventListener('change', e => { st.source = e.target.value; rerender(); });
     $('#' + id + '-size').addEventListener('change', e => { st.pageSize = +e.target.value; rerender(); });
     $('#' + id + '-table thead').addEventListener('click', e => {
       const th = e.target.closest('th[data-sort]');
@@ -1620,7 +1703,6 @@ function amountCell(r) {
     if (def.periodScoped) { const rg = getPeriodRange(state.dash.mode, state.dash.anchor); rows = rows.filter(r => inRange(r, rg)); }
     if (st.cat !== 'ALL') rows = rows.filter(r => r.category === st.cat);
     if (st.status !== 'ALL') rows = rows.filter(r => r.paymentStatus === st.status);
-    if (st.source !== 'ALL') rows = rows.filter(r => (r.source || 'APP') === st.source);
     if (st.search) {
       const q = st.search;
       rows = rows.filter(r => [r.docNo, r.payerName, r.idCard, r.damageType, r.damageDetail, r.plateNo, r.cardNo, r.cardType, r.remarks, r.paymentMethod, r.paymentStatus]
@@ -1737,7 +1819,11 @@ function findRecord(cat, id) { return state.data[cat].find(r => r.recordId === i
     cat: cat, editId: isEdit ? rec.recordId : null, amountTouched: isEdit,
     // รหัสคำขอ 1 ครั้งต่อ 1 การเปิดฟอร์ม — ถ้าเน็ตหลุดแล้วกดบันทึกซ้ำ เซิร์ฟเวอร์จะรู้ว่าเป็นรายการเดิม
     reqId: 'REQ-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10),
-        baseRev: isEdit ? num(rec.rev) : null // เลข Revision ตอนเปิดฟอร์ม ใช้ตรวจว่ามีคนแก้ทับระหว่างนี้หรือไม่
+    // ตำแหน่งแถว + ลายเซ็น + Revision ตอนเปิดฟอร์ม → เซิร์ฟเวอร์ใช้หาแถวในชีตและตรวจว่ามีคนแก้ทับระหว่างนี้หรือไม่
+    baseRev: isEdit ? num(rec.rev) : null,
+    baseLoc: isEdit ? (rec.loc || '') : '',
+    baseSig: isEdit ? (rec.sig || '') : '',
+    baseDoc: isEdit ? (rec.docNo || '') : ''
   };
 
     $('#formStripe').style.background = cat === 'E' ? 'linear-gradient(180deg,var(--e-1),var(--e-2))' : 'linear-gradient(180deg,var(--d-1),var(--d-2))';
@@ -1963,23 +2049,20 @@ function findRecord(cat, id) { return state.data[cat].find(r => r.recordId === i
     setBtnLoading(btn, true, 'กำลังบันทึก…');
     try {
       const payload = { category: f.cat, record: rec, allowDuplicateDoc: !!allowDuplicateDoc, clientReqId: f.reqId };
-    if (f.editId && f.baseRev !== null) payload.expectedRev = f.baseRev;
       let res;
-      if (f.editId) { payload.recordId = f.editId; res = await callServer('updateRecord', payload); }
-      else res = await callServer('saveData', payload);
+      if (f.editId) {
+        Object.assign(payload, { recordId: f.editId, loc: f.baseLoc, docNo: f.baseDoc, expectedSig: f.baseSig, expectedRev: f.baseRev });
+        res = await callServer('updateRecord', payload);
+      } else res = await callServer('saveData', payload);
 
-      const saved = Object.assign({ category: f.cat, source: 'APP', readOnly: false }, res.record);
-      const list = state.data[f.cat];
-      const i = list.findIndex(r => r.recordId === saved.recordId);
-      if (i >= 0) list[i] = saved; else list.push(saved);
+      // ใช้ผลจากเซิร์ฟเวอร์ (ที่อ่านกลับจากชีตแล้ว) แทนข้อมูลในฟอร์ม → หน้าจอตรงกับชีตเสมอ
+      replaceRecord(f.cat, res.replacedId || f.editId, res.record);
       closeModal('formModal');
-      // เลื่อนแดชบอร์ดไปยังวันของรายการที่เพิ่ง บันทึก เพื่อให้เห็นผลทันที
-      if (!f.editId) state.dash.anchor = saved.date;
-    persistCache();
+      // เลื่อนแดชบอร์ดไปยังวันของรายการที่เพิ่งบันทึก เพื่อให้เห็นผลทันที
+      if (!f.editId) state.dash.anchor = res.record.date;
       setBtnLoading(btn, false);
       renderAll();
-      toast('success', (res.message || 'บันทึกข้อมูลสำเร็จ') + ' — ' + saved.docNo + ' (' + money(saved.amount) + ' บาท)', 6000);
-    if (res.warning) toast('warn', 'หมายเหตุ: ' + res.warning + '\nรายการถูกเก็บไว้ในไฟล์ "' + (state.meta.dbName || 'ฐานข้อมูล') + '" แล้ว', 9000);
+      toast('success', (res.message || 'บันทึกข้อมูลสำเร็จ') + ' — ' + res.record.docNo + ' (' + money(res.record.amount) + ' บาท)', 6000);
       state.form = null;
     } catch (err) {
       setBtnLoading(btn, false);
@@ -2004,7 +2087,19 @@ function findRecord(cat, id) { return state.data[cat].find(r => r.recordId === i
     }
   }
 
-  /* ============================== 7. รายละเอียด / ลบ / แหล่งข้อมูล ============================== */
+  /** แทนที่/เพิ่มรายการใน state ด้วยข้อมูลที่เซิร์ฟเวอร์ส่งกลับ (ข้อมูลชุดเดียวกับในชีต) */
+  function replaceRecord(cat, oldId, rec) {
+    const saved = Object.assign({ category: cat }, rec);
+    state.mutations++;
+    const list = state.data[cat];
+    let i = oldId ? list.findIndex(r => r.recordId === oldId) : -1;
+    if (i < 0) i = list.findIndex(r => r.recordId === saved.recordId);
+    if (i >= 0) list[i] = saved; else list.push(saved);
+    // แถวอื่นในชีตเดียวกันที่อยู่ใต้แถวที่ถูกแทรก/ลบ ตำแหน่งเลื่อน → เซิร์ฟเวอร์หาแถวใหม่ให้เองจากรหัส/เลขที่เอกสาร
+    return saved;
+  }
+
+  /* ============================== 7. รายละเอียด / ยกเลิก / แหล่งข้อมูล ============================== */
   function openDetail(cat, id) {
     const r = findRecord(cat, id);
     if (!r) { toast('error', 'ไม่พบรายการนี้ (อาจถูกลบไปแล้ว)'); return; }
@@ -2032,21 +2127,19 @@ function findRecord(cat, id) { return state.data[cat].find(r => r.recordId === i
       ['เหตุผลการคืนเงิน', esc(r.refundNote || '-')]);
   }
   rows.push(['หมายเหตุ', esc(r.remarks || '-')]);
-      if (r.readOnly) {
-      rows.push(['แหล่งข้อมูล', 'ไฟล์เดิม: ' + esc(r.sourceFile || '-') + (r.sourceSheet ? ' → ชีต ' + esc(r.sourceSheet) : '')]);
+    rows.push(['ที่เก็บข้อมูล', esc(r.sourceFile || '-') + (r.sourceSheet ? ' → ชีต ' + esc(r.sourceSheet) : '') + (r.sourceRow ? ' แถว ' + int(r.sourceRow) : '')]);
+    if (r.hasMeta) {
+      rows.push(['บันทึกผ่านแอปเมื่อ', esc(r.createdAt || '-') + (r.createdBy ? ' โดย ' + esc(r.createdBy) : '')]);
+      if (r.updatedAt) rows.push(['แก้ไขล่าสุด', esc(r.updatedAt) + (r.updatedBy ? ' โดย ' + esc(r.updatedBy) : '') + ' (ครั้งที่ ' + int(r.rev) + ')']);
     } else {
-      rows.push(['แหล่งข้อมูล', 'บันทึกผ่านหน้าเว็บ'], ['บันทึกเมื่อ', esc(r.createdAt || '-') + (r.createdBy ? ' โดย ' + esc(r.createdBy) : '')]);
-      if (r.updatedAt) rows.push(['แก้ไขล่าสุด', esc(r.updatedAt) + (r.updatedBy ? ' โดย ' + esc(r.updatedBy) : '')]);
+      rows.push(['ที่มา', 'พิมพ์ในชีตโดยตรง']);
     }
     $('#detailBody').innerHTML = '<dl class="dl">' + rows.map(x => '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>').join('') + '</dl>' +
-      (r.readOnly ? '<div class="mt-4 text-[13.5px] muted">รายการนี้มาจากไฟล์รายปีเดิม ระบบแสดงแบบอ่านอย่างเดียว หากต้องแก้ไขให้แก้ที่ชีตต้นฉบับ แล้วกด "รีเฟรชจากชีต"</div>' : '');
+      (r.edited ? '<div class="mt-4 text-[13.5px] muted">แถวนี้ถูกแก้ในชีตโดยตรงหลังบันทึกผ่านแอป — แอปแสดงตามค่าที่เห็นในชีต</div>' : '');
     const foot = [];
-    if (r.readOnly) {
-      if (r.sourceUrl && r.sourceUrl !== '#') foot.push('<a class="btn btn-ghost" href="' + esc(r.sourceUrl) + '" target="_blank" rel="noopener">' + ICONS.sheet + 'เปิดแถวนี้ในชีตต้นฉบับ</a>');
-    } else {
-      foot.push('<button class="btn btn-ghost" type="button" data-act="delete" data-cat="' + cat + '" data-id="' + esc(r.recordId) + '">' + ICONS.del + 'ลบ</button>');
-      foot.push('<button class="btn ' + (cat === 'E' ? 'btn-e' : 'btn-d') + '" type="button" data-act="edit" data-cat="' + cat + '" data-id="' + esc(r.recordId) + '">' + ICONS.edit + 'แก้ไข</button>');
-    }
+    if (r.sourceUrl && r.sourceUrl !== '#') foot.push('<a class="btn btn-ghost" href="' + esc(r.sourceUrl) + '" target="_blank" rel="noopener">' + ICONS.sheet + 'เปิดแถวในชีต</a>');
+    if (r.paymentStatus !== 'ยกเลิก') foot.push('<button class="btn btn-ghost" type="button" data-act="delete" data-cat="' + cat + '" data-id="' + esc(r.recordId) + '">' + ICONS.del + 'ยกเลิกรายการ</button>');
+    foot.push('<button class="btn ' + (cat === 'E' ? 'btn-e' : 'btn-d') + '" type="button" data-act="edit" data-cat="' + cat + '" data-id="' + esc(r.recordId) + '">' + ICONS.edit + 'แก้ไข</button>');
     foot.push('<button class="btn btn-ghost" type="button" data-close-modal="detailModal">ปิด</button>');
     $('#detailFoot').innerHTML = foot.join('');
     openModal('detailModal');
@@ -2055,18 +2148,20 @@ function findRecord(cat, id) { return state.data[cat].find(r => r.recordId === i
   async function deleteRec(cat, id) {
     const r = findRecord(cat, id);
     if (!r) return;
-    const ok = await confirmBox('ยืนยันการลบรายการ', 'ลบรายการ ' + (r.docNo || '-') + ' : ' + (r.payerName || '-') + '\nจำนวน ' + money(r.amount) + ' บาท\n\n(ระบบเก็บประวัติไว้ในชีตฐานข้อมูลโดยเปลี่ยนสถานะเป็น "ลบ")', 'ลบรายการ');
-    if (!ok) return;
-    showBusy(true, 'กำลังลบรายการ…');
+    if (r.paymentStatus === 'ยกเลิก') { toast('info', 'รายการนี้ถูกยกเลิกไว้แล้ว'); return; }
+    const reason = await promptBox('ยืนยันการยกเลิกรายการ', 'ยกเลิกรายการ ' + (r.docNo || '-') + ' : ' + (r.payerName || '-') + '\nจำนวน ' + money(r.amount) + ' บาท\n\n' +
+      'แถวในชีตจะยังอยู่ (เลขลำดับไม่เพี้ยน) แต่ล้างจำนวนเงิน และเขียน "ยกเลิก" ในหมายเหตุ\nยอดของวันนั้นจะลดลงทันที', 'เหตุผลการยกเลิก (ไม่บังคับ)', 'ยกเลิกรายการ');
+    if (reason === null) return;
+    showBusy(true, 'กำลังยกเลิกรายการ…');
     try {
-      await callServer('deleteRecord', cat, id);
-      state.data[cat] = state.data[cat].filter(x => x.recordId !== id);
+      const res = await callServer('cancelRecord', { category: cat, recordId: id, loc: r.loc || '', docNo: r.docNo || '', expectedSig: r.sig || '', reason: reason });
+      if (res.record) replaceRecord(cat, res.replacedId || id, res.record);
       closeModal('detailModal');
       renderAll();
-      persistCache();
-      toast('success', 'ลบรายการ ' + (r.docNo || '') + ' สำเร็จ');
+      toast('success', res.message || ('ยกเลิกรายการ ' + (r.docNo || '') + ' แล้ว'));
     } catch (err) {
-      toast('error', err.message);
+      if (err.code === 'CONFLICT' || err.code === 'NOT_FOUND') { toast('warn', err.message, 8000); loadData(true); }
+      else toast('error', err.message);
     } finally {
       showBusy(false);
     }
@@ -2084,7 +2179,6 @@ function findRecord(cat, id) { return state.data[cat].find(r => r.recordId === i
     $('#detailTitle').textContent = 'แหล่งข้อมูล (ไฟล์ในโฟลเดอร์)';
     $('#detailSub').textContent = 'ระบบอ่านทุกไฟล์ Google Sheets ในโฟลเดอร์อัตโนมัติ — เพิ่มไฟล์ปีใหม่/ปีย้อนหลังแล้วกด "รีเฟรชจากชีต"';
     const stTxt = { ok: ['st-paid', 'อ่านสำเร็จ'], unsupported: ['st-pending', 'ต้องแปลงไฟล์'], skipped: ['st-pending', 'ข้าม'], error: ['st-cancel', 'ผิดพลาด'] };
-    const appE = state.data.E.filter(r => !r.readOnly), appD = state.data.D.filter(r => !r.readOnly);
     const rowsHtml = src.map(s => {
       const st = stTxt[s.status] || ['st-pending', s.status];
       return '<tr><td><a class="underline" href="' + esc(s.url || '#') + '" target="_blank" rel="noopener">' + esc(s.name) + '</a>' +
@@ -2093,29 +2187,29 @@ function findRecord(cat, id) { return state.data[cat].find(r => r.recordId === i
         '<td class="r num">' + int(s.records) + '</td><td class="r num">' + money(s.paidTotal) + '</td>' +
         '<td><span class="badge ' + st[0] + '">' + st[1] + '</span></td></tr>';
     }).join('');
-    const appRow = '<tr><td>บันทึกผ่านหน้าเว็บ (ฐานข้อมูล)' + (state.meta.dbUrl ? ' — <a class="underline" href="' + esc(state.meta.dbUrl) + '" target="_blank" rel="noopener">เปิดไฟล์</a>' : '') + '</td><td class="c">E + D</td><td class="c">-</td>' +
-      '<td class="r num">' + int(appE.length + appD.length) + '</td><td class="r num">' + money(summarize(appE.concat(appD)).paid) + '</td><td><span class="badge st-paid">ใช้งาน</span></td></tr>';
     $('#detailBody').innerHTML = '<div class="tbl-wrap"><table class="data"><thead><tr><th>ไฟล์</th><th class="c">หมวด</th><th class="c">ปี</th><th class="r">รายการ</th><th class="r">ชำระแล้ว (บาท)</th><th>สถานะ</th></tr></thead><tbody>' +
-      (rowsHtml || '<tr><td colspan="6" class="muted">ไม่พบไฟล์ในโฟลเดอร์</td></tr>') + appRow + '</tbody></table></div>' +
-      '<div class="mt-4 text-[13.5px] muted" style="line-height:1.7">• <b>รายการที่บันทึกผ่านหน้าเว็บจะเก็บในไฟล์ "' + esc(state.meta.dbName || 'ฐานข้อมูล') + '" ชีต Data_Category_E / Data_Category_D</b> ไม่ได้เขียนทับไฟล์รายปีเดิม<br>' +
+      (rowsHtml || '<tr><td colspan="6" class="muted">ไม่พบไฟล์ในโฟลเดอร์</td></tr>') + '</tbody></table></div>' +
+      (state.meta.legacyDbPending ? '<div class="err-box mt-4">ยังมีข้อมูลค้างในไฟล์ฐานข้อมูลเดิม (SBK_Fine_Database ของ v8–v12) — เปิด Apps Script แล้วรันฟังก์ชัน setupSystem 1 ครั้ง เพื่อย้ายเข้าไฟล์รายปี</div>' : '') +
+      '<div class="mt-4 text-[13.5px] muted" style="line-height:1.7">• <b>ที่เก็บข้อมูลมีที่เดียว: ตารางรายเดือนในไฟล์รายปีด้านบน</b> — บันทึก/แก้ไข/ยกเลิกในแอปจะเขียนลงแถวในชีตทันที และพิมพ์แก้ในชีตเองก็เห็นในแอปเมื่อกด "รีเฟรชจากชีต"<br>' +
+    '• ห้ามลบโน้ต (สามเหลี่ยมมุมขวาบน) ในช่องเลขที่เอกสาร — เก็บเวลา/ทะเบียน/ข้อมูลคืนเงินของรายการนั้น<br>' +
+    '• ขึ้นปีใหม่ ระบบสร้างไฟล์ปีใหม่และชีตเดือนใหม่ให้เองเมื่อบันทึกรายการแรก<br>' +
     '• แยกหมวดจากชื่อไฟล์: ต้องมีคำ "หมวด E" หรือ "หมวด D"<br>• ต้องมีปี พ.ศ. ในชื่อไฟล์ เช่น "ปี. 2570"<br>• ไฟล์ .xlsx ให้เปิดแล้วเลือก File → Save as Google Sheets<br>• ถ้าบันทึกแล้วไม่เห็นข้อมูล กดปุ่ม "ตรวจสอบระบบ" ด้านล่าง</div>';
     $('#detailFoot').innerHTML = (state.meta.folderUrl ? '<a class="btn btn-ghost" href="' + esc(state.meta.folderUrl) + '" target="_blank" rel="noopener">เปิดโฟลเดอร์</a>' : '') +
       '<button class="btn btn-ghost" type="button" id="btnDiagnose">ตรวจสอบระบบ</button>' +
-      '<button class="btn btn-primary" type="button" id="btnSourcesRefresh">รีเฟรชจากชีต</button><button class="btn btn-ghost" type="button" data-close-modal="detailModal">ปิด</button>';
+      '<button class="btn btn-primary" type="button" id="btnSourcesRefresh">อ่านทุกไฟล์ใหม่ทั้งหมด</button><button class="btn btn-ghost" type="button" data-close-modal="detailModal">ปิด</button>';
     $('#btnSourcesRefresh').addEventListener('click', () => { closeModal('detailModal'); loadData(true); });
     $('#btnDiagnose').addEventListener('click', runDiagnose);
     openModal('detailModal');
   }
 
   /**
- * ตรวจสอบระบบ — ไล่เช็คตั้งแต่สิทธิ์โฟลเดอร์ ไฟล์ฐานข้อมูล ชีตปลายทาง จนถึงทดลองเขียนจริง
+ * ตรวจสอบระบบ — ไล่เช็คตั้งแต่สิทธิ์โฟลเดอร์ ไฟล์รายปี สิทธิ์แก้ไขไฟล์ปลายทาง จนถึงทดลองเขียนจริง
  * ใช้เวลาไล่หาสาเหตุเมื่อ "บันทึกแล้วไม่เห็นข้อมูลในชีต"
  */
 /** เปิดฟอร์มแก้ไขโดยตั้งสถานะเป็น "คืนเงินแล้ว" ให้พร้อมกรอก (ใช้ตอนลูกค้านำบัตรมาคืนทีหลัง) */
 function openRefund(cat, id) {
   const r = findRecord(cat, id);
   if (!r) { toast('error', 'ไม่พบรายการนี้'); return; }
-  if (r.readOnly) { toast('warn', 'รายการจากไฟล์เดิมต้องแก้ที่ชีตต้นฉบับ'); return; }
   const draft = Object.assign({}, r, {
     paymentStatus: 'คืนเงินแล้ว',
     refundDate: r.refundDate || todayKey(),
@@ -2125,6 +2219,36 @@ function openRefund(cat, id) {
   });
   openForm(cat, draft);
   toast('info', 'กรอกวันที่และจำนวนเงินที่คืน แล้วกดบันทึก — ยอดนำส่งจะถูกหักในวันที่คืน');
+}
+
+/** หน้าต่างผลตรวจความถูกต้องของข้อมูล (ตามช่วงเวลาที่เลือกบนแดชบอร์ด) */
+function openAudit() {
+  if (!state.loaded) return;
+  const rg = getPeriodRange(state.dash.mode, state.dash.anchor);
+  const list = allRecords().filter(r => inRange(r, rg));
+  const au = auditRecords(list, rg, allRecords());
+  const row = (r, extra) => '<tr><td class="num">' + esc(thDate(r.date, 'short')) + '</td><td>' + catBadge(r.category) + '</td><td class="num">' +
+    esc(r.docNo || '-') + '</td><td>' + esc(r.payerName || '-') + '</td><td>' + extra + '</td><td class="c">' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-act="view" data-cat="' + r.category + '" data-id="' + esc(r.recordId) + '">ดู</button></td></tr>';
+  const section = (title, rows, note) => '<h4 class="font-semibold mt-4 mb-1">' + title + ' <span class="badge ' + (rows.length ? 'st-pending' : 'st-paid') + '">' + rows.length + '</span></h4>' +
+    (note ? '<div class="sub mb-2">' + note + '</div>' : '') +
+    (rows.length ? '<div class="tbl-wrap"><table class="data"><thead><tr><th>วันที่</th><th>หมวด</th><th>เลขที่เอกสาร</th><th>ชื่อ</th><th>รายละเอียด</th><th></th></tr></thead><tbody>' + rows.join('') + '</tbody></table></div>' : '<div class="sub">ไม่พบ</div>');
+  const rateRows = au.rate.map(x => row(x.r, esc(x.r.damageType) + ' ' + int(x.r.nights) + ' คืน → บันทึก <b>' + money(x.r.amount) + '</b> ควรเป็น ' + money(x.expected)));
+  const dupRows = [];
+  au.dupDoc.forEach(g => g.recs.forEach(r => dupRows.push(row(r, 'เลขที่เอกสารซ้ำ ' + g.recs.length + ' รายการ · ' + money(r.amount) + ' บาท'))));
+  const missRows = au.missing.map(x => row(x.r, 'ขาด: ' + esc(x.miss.join(', '))));
+  const pendRows = au.pending.map(x => row(x.r, 'ค้างชำระ ' + money(x.r.amount) + ' บาท · ' + int(x.days) + ' วัน'));
+  $('#detailStripe').style.background = au.total ? 'linear-gradient(180deg,#F59E0B,#D97706)' : 'linear-gradient(180deg,#10B981,#059669)';
+  $('#detailTitle').textContent = 'ตรวจความถูกต้องของข้อมูล' + (au.total ? ' — พบ ' + au.total + ' จุดที่ควรตรวจทาน' : ' — ไม่พบจุดผิดปกติ');
+  $('#detailSub').textContent = rg.label + ' · ระบบไม่แก้ข้อมูลให้เอง กรุณาตรวจกับเอกสารจริงก่อนแก้ไข';
+  $('#detailBody').innerHTML =
+    section('ยอดเงินไม่ตรงอัตราค่าปรับจอดค้างคืน', rateRows, 'อัตรา: ' + Object.keys(state.meta.overnightRates || {}).map(k => k + ' ' + money0(state.meta.overnightRates[k]) + ' บาท/คืน').join(' · ')) +
+    section('เลขที่เอกสารซ้ำ', dupRows, 'อาจเป็นการบันทึกซ้ำ หรือพิมพ์เลขผิด') +
+    section('ข้อมูลสำคัญไม่ครบ', missRows) +
+    section('ค้างชำระ (ทั้งหมดจนถึงสิ้นช่วงนี้)', pendRows) +
+    (au.noDate ? '<div class="err-box mt-4">มี ' + int(au.noDate) + ' รายการในชีตที่อ่านวันที่ไม่ได้ จึงไม่ถูกนับในรายงาน — ดูที่ปุ่ม "แหล่งข้อมูล"</div>' : '');
+  $('#detailFoot').innerHTML = '<button class="btn btn-ghost" type="button" data-close-modal="detailModal">ปิด</button>';
+  openModal('detailModal');
 }
 
 async function runDiagnose() {
@@ -2142,7 +2266,7 @@ async function runDiagnose() {
     $('#detailBody').innerHTML = '<div class="tbl-wrap"><table class="data"><thead><tr><th>ผล</th><th>รายการตรวจ</th><th>รายละเอียด</th></tr></thead><tbody>' +
       (rows || '<tr><td colspan="3" class="muted">ไม่มีข้อมูล</td></tr>') + '</tbody></table></div>' +
       '<div class="mt-4 text-[13.5px] muted" style="line-height:1.7">' + esc(res.note || '') + '</div>';
-    $('#detailFoot').innerHTML = (state.meta.dbUrl ? '<a class="btn btn-primary" href="' + esc(state.meta.dbUrl) + '" target="_blank" rel="noopener">เปิดไฟล์ฐานข้อมูล</a>' : '') +
+    $('#detailFoot').innerHTML = (state.meta.folderUrl ? '<a class="btn btn-primary" href="' + esc(state.meta.folderUrl) + '" target="_blank" rel="noopener">เปิดโฟลเดอร์ข้อมูล</a>' : '') +
       '<button class="btn btn-ghost" type="button" data-close-modal="detailModal">ปิด</button>';
     openModal('detailModal');
     toast(res.ok ? 'success' : 'error', res.ok ? 'ตรวจสอบระบบแล้ว: การบันทึกลงชีตใช้งานได้ปกติ' : 'พบจุดที่ต้องแก้ไข ดูรายละเอียดในตาราง');
@@ -2167,6 +2291,9 @@ function openSettings() {
     '<label class="label" for="cfgUrl">Web App URL (ลงท้ายด้วย /exec)</label>' +
     '<input type="url" class="field" id="cfgUrl" value="' + esc(cur) + '" spellcheck="false" placeholder="https://script.google.com/macros/s/.../exec">' +
     '<div class="hint">' + (custom ? 'ตอนนี้ใช้ URL ที่ตั้งค่าไว้ในเครื่องนี้ (ไม่ใช่ค่าในโค้ด)' : 'ตอนนี้ใช้ค่าที่ฝังมาในโค้ด') + '</div>' +
+    '<label class="label mt-4" for="cfgKey">รหัสเข้าใช้งาน API (ถ้าผู้ดูแลตั้งไว้ใน CONFIG.API_KEY)</label>' +
+    '<input type="password" class="field" id="cfgKey" value="' + esc(apiKey()) + '" autocomplete="off" placeholder="เว้นว่างถ้าไม่ได้ตั้งรหัส">' +
+    '<div class="hint">เก็บไว้ในเครื่องนี้เท่านั้น · ใช้ป้องกันคนที่ได้ URL ไปเปิดดูข้อมูลส่วนบุคคล</div>' +
     '<div class="mt-4 err-box hidden-el" id="cfgResult" style="background:var(--card-2);color:var(--text)"></div>' +
     '<div class="mt-4 text-[13.5px] muted" style="line-height:1.8">' +
     '<b>ถ้าเชื่อมต่อไม่ได้ ให้ไล่ตรวจตามนี้</b><br>' +
@@ -2190,16 +2317,19 @@ function openSettings() {
     const btn = $('#cfgTest');
     const url = $('#cfgUrl').value.trim();
     if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) { show(false, 'รูปแบบ URL ไม่ถูกต้อง ต้องขึ้นต้นด้วย https://script.google.com/ และลงท้ายด้วย /exec'); return; }
-    const prev = apiUrl();
+    const prev = apiUrl(), prevKey = apiKey();
     setBtnLoading(btn, true, 'กำลังทดสอบ…');
     setApiUrl(url);
+    setApiKey($('#cfgKey').value.trim());
     try {
       const res = await callServer('ping');
       show(true, 'เชื่อมต่อสำเร็จ · Backend ' + (res.version || '-') + ' · บัญชีที่รันสคริปต์: ' + (res.user || '-') +
-        ' · เวลาเซิร์ฟเวอร์ ' + (res.serverTime || '-') + (res.writeBack ? ' · เขียนกลับไฟล์รายปี: เปิด' : ''));
+        ' · เวลาเซิร์ฟเวอร์ ' + (res.serverTime || '-') +
+        (res.storage === 'yearly-files' ? ' · ที่เก็บข้อมูล: ไฟล์รายปี (ที่เดียว)' : ' · ⚠ Backend ยังเป็นเวอร์ชันเก่า — วางโค้ด v13 แล้ว Deploy → New version'));
     } catch (err) {
       show(false, err.message);
       setApiUrl(prev === API_URL ? '' : prev); // คืนค่าเดิมถ้าทดสอบไม่ผ่าน
+      setApiKey(prevKey);
     } finally {
       setBtnLoading(btn, false);
     }
@@ -2208,6 +2338,7 @@ function openSettings() {
     const url = $('#cfgUrl').value.trim();
     if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) { show(false, 'รูปแบบ URL ไม่ถูกต้อง'); return; }
     setApiUrl(url === API_URL ? '' : url);
+    setApiKey($('#cfgKey').value.trim());
     closeModal('detailModal');
     loadData(true);
   });
@@ -2252,7 +2383,7 @@ function openSettings() {
       '<div style="font-size:15px;color:#475569">' + esc(state.meta.orgName) + ' · ' + esc(state.meta.department || '') + '</div></div>' +
       '<div class="rp-meta"><div style="font-family:Kanit;font-weight:600;font-size:16px;color:#1B2433">' + esc(MODE_LABEL[rg.mode]) + ': ' + esc(rg.label) + '</div>' +
       '<div>' + esc(thDate(rg.start) + (rg.start !== rg.end ? ' – ' + thDate(rg.end) : '')) + '</div>' +
-      '<div>เลขที่รายงาน ' + esc(reportNo(rg)) + ' · ข้อมูล ณ ' + esc(asOf) + (state.stale ? ' (ข้อมูลในเครื่อง)' : '') + '</div>' +
+      '<div>เลขที่รายงาน ' + esc(reportNo(rg)) + ' · ข้อมูล ณ ' + esc(asOf) +  + '</div>' +
       '<div>พิมพ์เมื่อ ' + esc(thNowStamp()) + '</div></div></div>';
   }
   function a4Foot(pageNo) {
@@ -2317,21 +2448,26 @@ function openSettings() {
         const rf = (state.report.cat !== 'D' ? sumRefundIn(allE, b) : 0) + (state.report.cat !== 'E' ? sumRefundIn(allD, b) : 0);
         if (!eC && !dC && !eP && !dP && !rf) return null;
         const net = cents(eP + dP - rf);
+        const scope = (state.report.cat === 'E' ? allE : state.report.cat === 'D' ? allD : allE.concat(allD));
+        const cashNet = sumNetByMethodIn(scope, b, 'เงินสด'), trNet = sumNetByMethodIn(scope, b, 'โอนเงินผ่านธนาคาร');
         return { html: '<tr><td>' + esc(b.label) + '</td>' +
           (state.report.cat !== 'D' ? '<td class="r">' + (eC ? int(eC) : '-') + '</td><td class="r">' + (eP ? money(eP) : '-') + '</td>' : '') +
           (state.report.cat !== 'E' ? '<td class="r">' + (dC ? int(dC) : '-') + '</td><td class="r">' + (dP ? money(dP) : '-') + '</td>' : '') +
           '<td class="r">' + (rf ? '-' + money(rf) : '-') + '</td>' +
+          '<td class="r">' + money(cashNet) + '</td><td class="r">' + money(trNet) + '</td>' +
           '<td class="r"><b>' + money(net) + '</b></td></tr>' };
       }).filter(Boolean);
-      if (!bRows.length) bRows.push({ html: '<tr><td colspan="7" class="c" style="color:#94A3B8;padding:18px">ไม่มีรายการปรับในช่วงเวลานี้</td></tr>' });
+      if (!bRows.length) bRows.push({ html: '<tr><td colspan="9" class="c" style="color:#94A3B8;padding:18px">ไม่มีรายการปรับในช่วงเวลานี้</td></tr>' });
       const hdr = '<thead><tr><th>' + (rg.mode === 'year' ? 'เดือน' : 'วันที่') + '</th>' +
         (state.report.cat !== 'D' ? '<th class="r">E รายการ</th><th class="r">E รับเงิน (บาท)</th>' : '') +
         (state.report.cat !== 'E' ? '<th class="r">D รายการ</th><th class="r">D รับเงิน (บาท)</th>' : '') +
-        '<th class="r">คืนเงิน (บาท)</th><th class="r">นำส่งสุทธิ (บาท)</th></tr></thead>';
+        '<th class="r">คืนเงิน</th><th class="r">เงินสดสุทธิ</th><th class="r">โอนสุทธิ</th><th class="r">นำส่งสุทธิ (บาท)</th></tr></thead>';
       const tot = '<tr class="tot"><td>รวมทั้งสิ้น</td>' +
         (state.report.cat !== 'D' ? '<td class="r">' + int(E.length) + '</td><td class="r">' + money(sE.paid) + '</td>' : '') +
         (state.report.cat !== 'E' ? '<td class="r">' + int(D.length) + '</td><td class="r">' + money(sD.paid) + '</td>' : '') +
-        '<td class="r">' + (rfAll.total ? '-' + money(rfAll.total) : '-') + '</td><td class="r">' + money(netAll) + '</td></tr>';
+        '<td class="r">' + (rfAll.total ? '-' + money(rfAll.total) : '-') + '</td>' +
+      '<td class="r">' + money(cents(sAll.cash - rfAll.cash)) + '</td><td class="r">' + money(cents(sAll.transfer - rfAll.transfer)) + '</td>' +
+      '<td class="r">' + money(netAll) + '</td></tr>';
       const per = ROWS_PER_PAGE + 1;
       for (let i = 0; i < bRows.length; i += per) {
         const chunk = bRows.slice(i, i + per), last = i + per >= bRows.length;
@@ -2369,6 +2505,26 @@ function openSettings() {
         '<td class="r">' + money(sAll.paid) + '</td><td class="r">' + (rfAll.total ? '-' + money(rfAll.total) : '-') + '</td><td></td></tr>' : '') +
         '</tbody></table></div>');
     }
+    // หน้าท้ายรายงาน: ผลตรวจความถูกต้องของข้อมูล (มาตรฐานก่อนนำส่ง) — แสดงเฉพาะเมื่อพบจุดที่ควรตรวจ
+    const au = auditRecords(list, rg, rr.all);
+    if (au.total) {
+      const line = (r, txt) => '<tr><td style="white-space:nowrap">' + esc(thDate(r.date, 'short')) + '</td><td class="c"><span class="tag-' + r.category.toLowerCase() + '">' + r.category +
+        '</span></td><td>' + esc(r.docNo || '-') + '</td><td>' + esc(r.payerName || '-') + '</td><td>' + txt + '</td></tr>';
+      const lines = [];
+      au.rate.forEach(x => lines.push(line(x.r, 'ยอดไม่ตรงอัตรา: ' + esc(x.r.damageType) + ' ' + int(x.r.nights) + ' คืน บันทึก ' + money(x.r.amount) + ' ควรเป็น ' + money(x.expected))));
+      au.dupDoc.forEach(g => g.recs.forEach(r => lines.push(line(r, 'เลขที่เอกสารซ้ำ (' + g.recs.length + ' รายการ)'))));
+      au.missing.forEach(x => lines.push(line(x.r, 'ข้อมูลไม่ครบ: ' + esc(x.miss.join(', ')))));
+      au.pending.forEach(x => lines.push(line(x.r, 'ค้างชำระ ' + money(x.r.amount) + ' บาท (' + int(x.days) + ' วัน)')));
+      const per = ROWS_PER_PAGE + 1;
+      for (let i = 0; i < lines.length; i += per) {
+        pages.push(a4Head('ผลตรวจความถูกต้องของข้อมูล — ' + catTitle, rg) +
+          '<div style="margin-top:10px;font-size:12.5px;color:#64748B">รายการที่ควรตรวจทานกับเอกสารจริงก่อนนำส่งเงิน (ระบบไม่ได้แก้ไขข้อมูลให้)</div>' +
+          '<div style="margin-top:8px"><table><thead><tr><th>วันที่</th><th class="c">หมวด</th><th>เลขที่เอกสาร</th><th>ชื่อ-นามสกุล</th><th>ประเด็นที่ควรตรวจ</th></tr></thead><tbody>' +
+          lines.slice(i, i + per).join('') + '</tbody></table>' +
+          (au.noDate && i + per >= lines.length ? '<div style="margin-top:8px;font-size:12px;color:#B45309">* มี ' + int(au.noDate) + ' รายการในชีตที่อ่านวันที่ไม่ได้ จึงไม่ถูกนับในรายงานนี้</div>' : '') + '</div>');
+      }
+    }
+
     const total = pages.length;
     $('#reportPages').innerHTML = pages.map((p, i) => '<div class="a4">' + p + a4Foot(i + 1).replace('{{TOTAL}}', total) + '</div>').join('');
     drawReportChart(rg, E, D, types);
@@ -2449,11 +2605,6 @@ function openSettings() {
   async function exportReport(kind) {
     const btn = kind === 'pdf' ? $('#btnExportPdf') : $('#btnExportJpg');
     if (!state.loaded) return;
-    if (state.stale) {
-      // ยอดนำส่งต้องมาจากข้อมูลล่าสุดเท่านั้น — ถ้ายังเป็นข้อมูลในเครื่อง ให้ยืนยันก่อน
-      const go = await confirmBox('ข้อมูลยังไม่ได้อัปเดตจากเซิร์ฟเวอร์', 'ตอนนี้แสดงข้อมูลที่บันทึกไว้ในเครื่อง อาจไม่ตรงกับยอดล่าสุด\n\nแนะนำให้กด "รีเฟรชจากชีต" ก่อนพิมพ์รายงานนำส่งเงิน', 'พิมพ์ต่อไป');
-      if (!go) return;
-    }
     const pageCount = $$('#reportPages .a4').length;
     if (pageCount > 40) {
       // แปลงภาพใช้เวลาราว 1 วินาที/หน้า — เตือนก่อน ไม่ให้เข้าใจผิดว่าแอปค้าง
@@ -2496,7 +2647,7 @@ function openSettings() {
       r.category === 'E' ? num(r.nights) : '', r.plateNo || '', r.cardNo || '', r.cardType || '', r.category === 'D' ? num(r.fineAmount) : '', r.category === 'D' ? num(r.extraFee) : '',
       num(r.amount), r.refundDate || '', isRefunded(r) ? num(r.refundAmount) : '', r.refundMethod || '', r.refundNote || '',
     num(r.amount) - (isRefunded(r) ? num(r.refundAmount) : 0),
-    r.paymentStatus, r.paymentMethod, r.remarks, r.readOnly ? 'ไฟล์เดิม: ' + (r.sourceFile || '') : 'หน้าเว็บ'].map(q).join(','));
+    r.paymentStatus, r.paymentMethod, r.remarks, (r.sourceFile || '') + (r.sourceSheet ? ' / ' + r.sourceSheet : '') + (r.sourceRow ? ' แถว ' + r.sourceRow : '')].map(q).join(','));
     // BOM (\uFEFF) ทำให้ Excel อ่านภาษาไทย UTF-8 ถูกต้อง
     const blob = new Blob(['\uFEFF' + head.join(',') + '\n' + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -2666,6 +2817,7 @@ function openSettings() {
   /** กล่องยืนยันแทน confirm() ของเบราว์เซอร์ */
   function confirmBox(title, text, yesLabel) {
     return new Promise(resolve => {
+      $('#confirmInputWrap').classList.add('hidden-el');
       $('#confirmTitle').textContent = title;
       $('#confirmText').textContent = text;
       $('#confirmYes').textContent = yesLabel || 'ยืนยัน';
@@ -2673,6 +2825,19 @@ function openSettings() {
       openModal('confirmModal');
       setTimeout(() => $('#confirmNo').focus(), 60);
     });
+  }
+
+  /** กล่องยืนยันพร้อมช่องกรอกข้อความ — คืนข้อความ ('' ได้) หรือ null ถ้ากดปิด */
+  async function promptBox(title, text, inputLabel, yesLabel) {
+    const p = confirmBox(title, text, yesLabel);
+    $('#confirmInputLabel').textContent = inputLabel || 'ระบุ';
+    $('#confirmInput').value = '';
+    $('#confirmInputWrap').classList.remove('hidden-el');
+    setTimeout(() => $('#confirmInput').focus(), 80);
+    const yes = await p;
+    const v = $('#confirmInput').value.trim();
+    $('#confirmInputWrap').classList.add('hidden-el');
+    return yes ? v : null;
   }
 
   function showBusy(on, msg) {
@@ -2704,107 +2869,72 @@ function openSettings() {
     try { history.replaceState(null, '', '#' + tab); } catch (e) { /* iframe */ }
   }
 
-  /* ---------- แคชข้อมูลในเครื่อง (แสดงผลทันทีตอนเปิดแอป แล้วค่อยอัปเดตเบื้องหลัง) ---------- */
-  const LOCAL_CACHE_KEY = 'sbkFineCache_v11';
-  const LOCAL_CACHE_MAX_AGE = 7 * 86400000; // เก็บไว้ไม่เกิน 7 วัน
-
-  /**
-   * บันทึกข้อมูลล่าสุดลงเครื่อง — ตัดเลขบัตรประชาชนออก เพื่อไม่ให้ข้อมูลส่วนบุคคลค้างในเครื่องที่ใช้ร่วมกัน
-   * (เลขบัตรจะกลับมาเมื่อโหลดข้อมูลสดจากเซิร์ฟเวอร์เสร็จ ซึ่งใช้เวลาไม่กี่วินาที)
+  /* ---------- ข้อมูลมาจากที่เดียว: ไฟล์รายปีใน Google Sheets ----------
+   * v13 ไม่เก็บข้อมูลรายการไว้ในเครื่องอีกแล้ว (เดิมแสดงข้อมูลในเครื่องก่อนแล้วโหลดซ้ำทับ = เห็นข้อมูล 2 ชุดซ้อนกัน)
+   * เปิดแอป → ดึงจากชีตครั้งเดียว → แสดงผล  ส่วนความเร็วได้จากแคชฝั่งเซิร์ฟเวอร์ที่ผูกกับเวลาแก้ไขไฟล์
    */
-  function persistCache() {
-    try {
-      if (state.demo) return;
-      const strip = r => { const o = Object.assign({}, r); delete o.idCard; return o; };
-      const payload = {
-        t: Date.now(), url: apiUrl(), v: APP_VERSION,
-        E: state.data.E.map(strip), D: state.data.D.map(strip),
-        meta: Object.assign({}, state.meta, { sources: state.meta.sources || [] })
-      };
-      localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(payload));
-    } catch (e) {
-      // พื้นที่เต็ม/ถูกปิด → ข้ามไป ไม่กระทบการใช้งาน
-      try { localStorage.removeItem(LOCAL_CACHE_KEY); } catch (e2) { /* ignore */ }
-    }
+  function purgeOldLocalData() {
+    // ลบข้อมูลรายการที่เวอร์ชันเก่าเคยเก็บไว้ในเครื่อง (มีชื่อลูกค้า) — เก็บไว้เฉพาะ URL/รหัส API/ธีม
+    try { ['sbkFineCache_v10', 'sbkFineCache_v11', 'sbkFineCache_v12', 'sbkFineCache'].forEach(k => localStorage.removeItem(k)); } catch (e) { /* storage ถูกปิด */ }
   }
-  function readCache() {
-    try {
-      const raw = localStorage.getItem(LOCAL_CACHE_KEY);
-      if (!raw) return null;
-      const c = JSON.parse(raw);
-      if (!c || c.url !== apiUrl() || c.v !== APP_VERSION) return null;       // เปลี่ยน URL/เวอร์ชัน → ไม่ใช้แคชเก่า
-      if (!Array.isArray(c.E) || !Array.isArray(c.D)) return null;
-      if (Date.now() - c.t > LOCAL_CACHE_MAX_AGE) return null;
-      return c;
-    } catch (e) { return null; }
-  }
-  function clearLocalCache() { try { localStorage.removeItem(LOCAL_CACHE_KEY); } catch (e) { /* ignore */ } }
 
-  /** นำข้อมูล (จากเซิร์ฟเวอร์หรือแคช) เข้าสู่ state แล้วแสดงผล */
-  function applyData(res, fromCache) {
+  /** นำข้อมูลจากเซิร์ฟเวอร์เข้าสู่ state แล้วแสดงผล (มีทางเข้าทางเดียว) */
+  function applyData(res) {
     state.data.E = (res.E || []).map(r => Object.assign({ category: 'E' }, r));
     state.data.D = (res.D || []).map(r => Object.assign({ category: 'D' }, r));
     state.meta = Object.assign({}, DEFAULT_META, res.meta || {});
     state.demo = !hasGAS() && !hasApi();
     state.loaded = true;
-    state.stale = !!fromCache;
     $('#demoBadge').classList.toggle('hidden-el', !state.demo);
     $('#appTitle').textContent = state.meta.appTitle;
     $('#appOrg').textContent = state.meta.orgName + ' · ' + (state.meta.department || '');
     renderAll();
     $('#lockOrg').textContent = state.meta.orgName + ' · ' + (state.meta.department || '');
-    $('#lockStatus').textContent = (fromCache ? 'ข้อมูลที่บันทึกไว้ในเครื่อง · กำลังอัปเดต… · ' : 'ข้อมูลพร้อมใช้งาน · ') +
-      'หมวด E ' + int(state.data.E.length) + ' · หมวด D ' + int(state.data.D.length) + ' รายการ';
+    $('#lockStatus').textContent = 'ข้อมูลจาก Google Sheets · ' + (state.meta.generatedAt || '') +
+      ' · หมวด E ' + int(state.data.E.length) + ' · หมวด D ' + int(state.data.D.length) + ' รายการ';
   }
 
-  function setSyncBadge(text, kind) {
-    const b = $('#syncBadge');
-    if (!b) return;
-    if (!text) { b.classList.add('hidden-el'); return; }
-    b.className = 'badge ' + (kind || 'st-refund');
-    b.textContent = text;
+  let loadSeq = 0;      // กันผลลัพธ์ของคำขอเก่ามาทับคำขอใหม่ (กดรีเฟรชรัวๆ)
+  let loadingNow = null; // คำขอที่กำลังวิ่งอยู่ — เรียกซ้ำระหว่างนี้จะรอผลเดียวกัน ไม่ยิงซ้อน
+  function loadData(forceRefresh) {
+    if (loadingNow && !forceRefresh) return loadingNow;
+    loadingNow = loadDataInner(forceRefresh).finally(() => { loadingNow = null; });
+    return loadingNow;
   }
-
-  let loadSeq = 0; // กันผลลัพธ์ของคำขอเก่ามาทับคำขอใหม่ (กดรีเฟรชรัวๆ)
-  async function loadData(forceRefresh) {
+  async function loadDataInner(forceRefresh) {
     const mySeq = ++loadSeq;
     const first = !state.loaded;
-    let fromCache = false;
-
-    // 1) เปิดแอปครั้งแรก: แสดงข้อมูลล่าสุดที่เคยโหลดไว้ทันที (ไม่ต้องรอเครือข่าย)
-    if (first && !forceRefresh) {
-      const c = readCache();
-      if (c) {
-        try { applyData(c, true); fromCache = true; } catch (e) { clearLocalCache(); }
-      }
-    }
-    if (first && !fromCache) $('#overlay').classList.remove('hidden-el');
-    else if (!first && forceRefresh) showBusy(true, 'กำลังอ่านไฟล์ในโฟลเดอร์ใหม่ทั้งหมด…');
-    if (fromCache) { $('#overlay').classList.add('hidden-el'); setSyncBadge('กำลังอัปเดตข้อมูล…'); }
+    const mutAtStart = state.mutations;
+    if (first) $('#overlay').classList.remove('hidden-el');
+    else showBusy(true, forceRefresh ? 'กำลังอ่านไฟล์ในโฟลเดอร์ใหม่ทั้งหมด…' : 'กำลังโหลดข้อมูลล่าสุด…');
 
     const btn = $('#btnReload');
     btn.disabled = true;
     try {
-      // 2) ดึงข้อมูลสดจากเซิร์ฟเวอร์
+      const t0 = Date.now();
       const res = await callServer('getData', !!forceRefresh);
       if (mySeq !== loadSeq) return; // มีคำขอใหม่กว่าแล้ว — ทิ้งผลนี้
-      applyData(res, false);
-      persistCache();
+      if (state.mutations !== mutAtStart) {
+        // ระหว่างรอผล มีการบันทึก/แก้ไขเกิดขึ้น → ผลนี้อาจยังไม่มีรายการนั้น: ขอใหม่อีกรอบ (ไม่แสดงข้อมูลเก่าทับ)
+        btn.disabled = false;
+        return loadDataInner(false);
+      }
+      applyData(res);
       showBusy(false);
-      setSyncBadge('');
+      state.loadMs = Date.now() - t0;
       const noDate = allRecords().filter(r => !isValidKey(r.date)).length;
       if (noDate) toast('warn', 'มี ' + int(noDate) + ' รายการที่อ่านวันที่จากชีตไม่ได้ จึงไม่ถูกนับในรายงานตามช่วงเวลา (ดูปุ่ม "แหล่งข้อมูล")', 8000);
-      const probs = (state.meta.sources || []).filter(s => s.status !== 'ok');
+      const probs = (state.meta.sources || []).filter(s => s.status === 'error' || s.status === 'unsupported');
       if (state.demo && first) toast('info', 'โหมดทดลอง: ยังไม่ได้ตั้งค่า API_URL จึงแสดงข้อมูลจำลอง');
       else if (probs.length) toast('warn', 'มี ' + probs.length + ' ไฟล์ในโฟลเดอร์ที่อ่านไม่ได้ — กดปุ่ม "แหล่งข้อมูล" เพื่อดูรายละเอียด', 7000);
-      else if (!first && forceRefresh) toast('success', 'โหลดข้อมูลล่าสุดแล้ว (E ' + int(state.data.E.length) + ' · D ' + int(state.data.D.length) + ' รายการ)');
+      else if (state.meta.legacyDbPending) toast('warn', 'ยังมีข้อมูลค้างในไฟล์ฐานข้อมูลเดิม (v8–v12) — ผู้ดูแลต้องรัน setupSystem ใน Apps Script 1 ครั้ง', 9000);
+      else if (!first) toast('success', 'โหลดข้อมูลล่าสุดจากชีตแล้ว (E ' + int(state.data.E.length) + ' · D ' + int(state.data.D.length) + ' รายการ · ' + (state.loadMs / 1000).toFixed(1) + ' วินาที)');
     } catch (err) {
       if (mySeq !== loadSeq) return;
       showBusy(false);
-      if (fromCache || (!first && state.loaded)) {
-        // ยังมีข้อมูลเดิมให้ดูได้ → ไม่บล็อกหน้าจอ แต่บอกชัดว่าเป็นข้อมูลเก่า
-        setSyncBadge('ข้อมูลอาจไม่เป็นปัจจุบัน', 'st-pending');
-        toast('error', 'อัปเดตข้อมูลไม่สำเร็จ — กำลังแสดงข้อมูลล่าสุดที่มี\n' + err.message, 9000);
+      if (state.loaded) {
+        // ยังมีข้อมูลรอบก่อนบนหน้าจอ (โหลดจากชีตในรอบนี้ของการเปิดแอป) → ไม่บล็อกหน้าจอ
+        toast('error', 'โหลดข้อมูลล่าสุดไม่สำเร็จ — หน้าจอยังแสดงข้อมูลที่โหลดไว้เมื่อ ' + (state.meta.generatedAt || '-') + '\n' + err.message, 9000);
       } else {
         $('#overlay').classList.remove('hidden-el');
         $('#overlayMsg').textContent = 'โหลดข้อมูลไม่สำเร็จ';
@@ -2817,6 +2947,7 @@ function openSettings() {
       if (mySeq === loadSeq) btn.disabled = false;
     }
   }
+
 
   function handleEvents() {
     // แท็บ
@@ -2870,9 +3001,11 @@ function openSettings() {
     // Header
     $('#btnLock').addEventListener('click', () => showLock(false));
     $('#btnTheme').addEventListener('click', () => applyTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark'));
-    $('#btnReload').addEventListener('click', () => loadData(true));
+    // ปุ่มรีเฟรช: แคชฝั่งเซิร์ฟเวอร์ผูกกับเวลาแก้ไขของแต่ละไฟล์ จึงได้ข้อมูลล่าสุดโดยไม่ต้องอ่านทุกไฟล์ใหม่ (เร็ว)
+    $('#btnReload').addEventListener('click', () => loadData(false));
     $('#btnSources').addEventListener('click', () => { if (state.loaded) openSources(); });
   $('#btnSettings').addEventListener('click', openSettings);
+  $('#btnAudit').addEventListener('click', openAudit);
     $('#btnOverlaySettings').addEventListener('click', openSettings);
   $('#btnRetry').addEventListener('click', () => {
       $('#overlayMsg').textContent = 'กำลังโหลดข้อมูลจาก Google Sheets…';
@@ -2916,6 +3049,7 @@ function openSettings() {
     let theme = 'light';
     try { theme = localStorage.getItem('sbkFineTheme') || (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch (e) { /* ignore */ }
     applyTheme(theme);
+    purgeOldLocalData();
     ['dash', 'E', 'D'].forEach(buildTableCard);
     handleEvents();
     setupInstall();
