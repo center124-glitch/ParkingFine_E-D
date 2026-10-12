@@ -4,14 +4,15 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D — SBK v13</title>
+  <title>ระบบบันทึกสรุปยอดปรับ หมวด E / หมวด D — SBK v14</title>
   <!--
-    SBK_ParkingFine_ED_v13.html — ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D)
-    ศูนย์การค้าซีคอนบางแค (SBK) · เวอร์ชัน v13
-    ไฟล์เดียวครบ: HTML + CSS + JavaScript  (ใช้คู่กับ Code_ParkingFine_ED_v13.gs)
+    SBK_ParkingFine_ED_v14.html — ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D)
+    ศูนย์การค้าซีคอนบางแค (SBK) · เวอร์ชัน v14
+    ไฟล์เดียวครบ: HTML + CSS + JavaScript  (ใช้คู่กับ Code_ParkingFine_ED_v13.gs — Backend ไม่เปลี่ยน ใช้ตัวเดิมต่อได้)
     เปิดไฟล์นี้ได้เลย (ดับเบิลคลิก / วางบนเว็บเซิร์ฟเวอร์ / ส่งให้ทีม) ไม่ต้องอัปขึ้น Apps Script
     เชื่อมต่อ Google Sheets ผ่าน Web App URL ที่ฝังไว้ในตัวแปร API_URL ด้านล่าง (JSONP + POST)
-    v13: ที่เก็บข้อมูลมีที่เดียว = ตารางรายเดือนในไฟล์รายปี (เลิกใช้ไฟล์ฐานข้อมูลแยก และไม่เก็บข้อมูลรายการในเครื่อง)
+    v14: แก้ใบรายงาน A4 เพี้ยน (หัวรายงานปิดแท็กไม่ครบ ทำให้ทุกหน้าซ้อนกัน/ตารางชิดขวา/ท้ายกระดาษทับตาราง) — แก้เฉพาะโค้ดสร้างหัวรายงาน a4Head()
+  v13: ที่เก็บข้อมูลมีที่เดียว = ตารางรายเดือนในไฟล์รายปี (เลิกใช้ไฟล์ฐานข้อมูลแยก และไม่เก็บข้อมูลรายการในเครื่อง)
          โหลดครั้งเดียวต่อการเปิดแอป · แก้ไข/ยกเลิกได้ทุกแถว · แคชฝั่งเซิร์ฟเวอร์ผูกกับเวลาแก้ไขไฟล์ (เร็วและไม่ได้ข้อมูลเก่า)
   -->
   <meta name="theme-color" content="#EA580C">
@@ -749,7 +750,7 @@
 
   <script>
   /* ============================================================================
-   *  Frontend Logic — SBK_ParkingFine_ED_v13.html
+   *  Frontend Logic — SBK_ParkingFine_ED_v14.html
    *  ระบบบันทึกสรุปยอดปรับค่าเสียหาย (หมวด E) และปรับบัตร จยย. สูญหาย (หมวด D) — SBK
    *
    *  โครงสร้าง
@@ -767,7 +768,7 @@
   'use strict';
 
   /* ============================== 0. ค่าคงที่ / State ============================== */
-  const APP_VERSION = 'v13';
+  const APP_VERSION = 'v14';
 
 /* --------------------------------------------------------------------------
  *  ★ จุดเดียวที่ต้องแก้เวลาเปลี่ยน Deployment ★
@@ -2383,7 +2384,7 @@ function openSettings() {
       '<div style="font-size:15px;color:#475569">' + esc(state.meta.orgName) + ' · ' + esc(state.meta.department || '') + '</div></div>' +
       '<div class="rp-meta"><div style="font-family:Kanit;font-weight:600;font-size:16px;color:#1B2433">' + esc(MODE_LABEL[rg.mode]) + ': ' + esc(rg.label) + '</div>' +
       '<div>' + esc(thDate(rg.start) + (rg.start !== rg.end ? ' – ' + thDate(rg.end) : '')) + '</div>' +
-      '<div>เลขที่รายงาน ' + esc(reportNo(rg)) + ' · ข้อมูล ณ ' + esc(asOf) +  + '</div>' +
+      '<div>เลขที่รายงาน ' + esc(reportNo(rg)) + ' · ข้อมูล ณ ' + esc(asOf) + '</div>' +
       '<div>พิมพ์เมื่อ ' + esc(thNowStamp()) + '</div></div></div>';
   }
   function a4Foot(pageNo) {
